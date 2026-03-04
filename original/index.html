@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Jet Slalom</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    font-family: 'Courier New', Courier, monospace;
+    color: #fff;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  #score-bar {
+    background: #a0d0b0;
+    color: #000;
+    width: 320px;
+    max-width: 100vw;
+    padding: 4px 10px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 13px;
+    font-family: sans-serif;
+  }
+  #score-bar span { white-space: nowrap; }
+  #score-display, #continue-display, #hiscore-display {
+    font-family: 'Courier New', monospace;
+    font-weight: bold;
+  }
+  #canvas-wrapper {
+    position: relative;
+    display: block;
+    line-height: 0;
+    width: 320px;
+    max-width: 100vw;
+  }
+  #game-canvas {
+    display: block;
+    cursor: pointer;
+    outline: none;
+  }
+  /* Game-over overlay — floats over the frozen canvas */
+  #game-over-overlay {
+    display: none;
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    /* no background: game world shows through */
+  }
+  #game-over-panel {
+    position: absolute;
+    top: 34%;
+    left: 15%;
+    user-select: none;
+  }
+  .awt-btn {
+    display: block;
+    width: 105px;
+    padding: 3px 6px;
+    font-family: sans-serif;
+    font-size: 12px;
+    background: #d4d0c8;
+    border: 2px solid;
+    border-color: #ffffff #808080 #808080 #ffffff;
+    cursor: pointer;
+    text-align: center;
+    color: #000;
+    margin-bottom: 4px;
+  }
+  .awt-btn:active:not(:disabled) {
+    border-color: #808080 #ffffff #ffffff #808080;
+  }
+  .awt-btn:disabled {
+    color: #a0a0a0;
+    cursor: default;
+  }
+  #send-record-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  #send-record-row .awt-btn {
+    margin-bottom: 0;
+  }
+  #player-name {
+    width: 100px;
+    font-family: sans-serif;
+    font-size: 12px;
+    background: #fff;
+    border: 2px solid;
+    border-color: #808080 #ffffff #ffffff #808080;
+    padding: 2px 3px;
+    color: #000;
+  }
+  #hiscore-bar {
+    background: #a0d0b0;
+    color: #000;
+    width: 320px;
+    max-width: 100vw;
+    padding: 4px 10px;
+    font-size: 13px;
+    font-family: sans-serif;
+  }
+  #touch-controls {
+    display: none;
+    width: 320px;
+    max-width: 100vw;
+    margin-top: 8px;
+    gap: 8px;
+  }
+  .touch-btn {
+    flex: 1;
+    padding: 20px;
+    font-size: 24px;
+    background: #333;
+    color: #fff;
+    border: 2px solid #666;
+    border-radius: 8px;
+    text-align: center;
+    touch-action: none;
+  }
+  .touch-btn:active { background: #555; }
+  @media (pointer: coarse) {
+    #touch-controls { display: flex; }
+  }
+  @media (max-width: 320px) {
+    #score-bar, #hiscore-bar, #touch-controls { width: 100vw; }
+  }
+</style>
+</head>
+<body>
+  <div id="score-bar">
+    <span>Score:</span>
+    <span id="score-display">000000</span>
+    <span>Continue penalty:</span>
+    <span id="continue-display">0</span>
+  </div>
+  <div id="canvas-wrapper">
+    <canvas id="game-canvas" width="320" height="200"></canvas>
+    <div id="game-over-overlay">
+      <div id="game-over-panel">
+        <button id="play-again-btn" class="awt-btn">Play Again</button>
+        <div id="send-record-row">
+          <button id="send-record-btn" class="awt-btn">Send Record</button>
+          <input type="text" id="player-name" class="awt-input" maxlength="16">
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="hiscore-bar">
+    <span id="hiscore-display">Hi-score:0</span>
+  </div>
+  <div id="touch-controls">
+    <div class="touch-btn" id="touch-left">&#9664; LEFT</div>
+    <div class="touch-btn" id="touch-right">RIGHT &#9654;</div>
+  </div>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

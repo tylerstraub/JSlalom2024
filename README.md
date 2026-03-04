@@ -6,6 +6,10 @@ Dodge obstacles, weave through corridors, and survive as long as you can across 
 
 ## Play
 
+**[Play the Remaster on GitHub Pages](https://tylerstraub.github.io/JSlalom2024/)**
+
+Or run locally:
+
 ```bash
 # macOS / Linux
 python3 -m http.server 8080
@@ -14,9 +18,8 @@ python3 -m http.server 8080
 python -m http.server 8080
 ```
 
-Open http://localhost:8080
-
-Or deploy to any static hosting (GitHub Pages, Netlify, etc.) — no build step required.
+- Remaster: http://localhost:8080/
+- Original (archive): http://localhost:8080/original/
 
 ## Controls
 
@@ -25,12 +28,17 @@ Or deploy to any static hosting (GitHub Pages, Netlify, etc.) — no build step 
 | Arrow Left / J | Steer left |
 | Arrow Right / L | Steer right |
 | Space | Start game |
+| D | Watch hi-score demo replay |
+
+Touch controls appear automatically on mobile devices.
+
+### Original-only controls (archive version)
+
+| Key | Action |
+|-----|--------|
 | C | Continue from last reached stage |
 | A | Speed up (hold) |
-| D | Watch hi-score demo replay |
 | T | Jump to round 6 (test mode) |
-
-Touch controls appear on mobile devices.
 
 ## About
 
@@ -38,14 +46,16 @@ The original game was a Java applet that no longer runs in modern browsers. This
 
 - **No dependencies** — vanilla JS with ES modules
 - **No build step** — just serve and play
-- **Original 320×200 resolution** — CSS-scaled with pixelated rendering
 - **Original audio** — explosion sound recovered from original gameplay footage
 
 ## Project Structure
 
 ```
-index.html        Game page
-js/               JavaScript source (ES modules)
+index.html        Remaster entry (fullscreen, 60fps, anti-aliased)
+js/               Remaster JavaScript source (ES modules)
+original/
+  index.html      Original entry (320×200, pixel-exact, ~18fps)
+  js/             Original JavaScript source — frozen, archive only
 audio/            Sound files (BOMB.wav)
 jiki.gif          Player sprite frame 1
 jiki2.gif         Player sprite frame 2
@@ -58,3 +68,4 @@ docs/             Technical documentation
 
 - **Original game**: MR-C (1997)
 - **Restoration**: HTML5 port from decompiled Java source
+- **Remaster**: Tyler Straub (2024)

@@ -20,24 +20,21 @@ export class RoundManager {
   createObstacle(recorder, x, width) {
     const ob = Obstacle.newObstacle();
     const p = ob.points;
-    p[0].setXYZ(x - width, 2.0, 40.5);
-    p[1].setXYZ(x, -1.4, 40.0);
-    p[2].setXYZ(x + width, 2.0, 40.5);
-    p[3].setXYZ(x, 2.0, 39.5);
+    p[0].setXYZ(x - width, 2.0, 25.5);
+    p[1].setXYZ(x, -1.4, 25.0);
+    p[2].setXYZ(x + width, 2.0, 25.5);
+    p[3].setXYZ(x, 2.0, 24.5);
     ob.color = OBSTACLE_COLORS[recorder.getRandom() % 4];
     ob.prepareNewObstacle();
     return ob;
   }
 
-  createObstacleRandom(recorder, vx) {
-    // Offset spawn x so obstacles arrive at their random position regardless of
-    // current banking velocity — without this, hard banking lets the player
-    // avoid all obstacles since they drift ≈vx*39 units before reaching the ship.
-    const x = (recorder.getRandom() % 256) / 8.0 - 16.0 - vx * 39;
+  createObstacleRandom(recorder) {
+    const x = (recorder.getRandom() % 256) / 8.0 - 16.0;
     return this.createObstacle(recorder, x, 0.6);
   }
 
-  generateObstacle(obstacles, recorder, vx) {
+  generateObstacle(obstacles, recorder) {
     // Abstract - override in subclasses
   }
 

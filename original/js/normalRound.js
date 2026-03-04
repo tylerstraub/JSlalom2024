@@ -7,12 +7,12 @@ export class NormalRound extends RoundManager {
     this.counter = 0;
   }
 
-  generateObstacle(obstacles, recorder, vx) {
+  generateObstacle(obstacles, recorder) {
     this.gameTime++;
     this.counter++;
     if (this.counter >= this.interval) {
       this.counter = 0;
-      const ob = this.createObstacleRandom(recorder, vx);
+      const ob = this.createObstacleRandom(recorder);
       obstacles.add(ob);
     }
   }

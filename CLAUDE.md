@@ -7,10 +7,10 @@ This repository contains **two variants**:
 
 | Variant | Entry point | Goal |
 |---------|-------------|------|
-| **Original** | `index.html` | Pixel-exact restoration — every behavior matches the Java applet |
-| **Remaster** | `remaster/index.html` | Fullscreen, 60 fps, anti-aliased — gameplay identical, presentation modernized |
+| **Original** | `original/index.html` | Pixel-exact restoration — every behavior matches the Java applet |
+| **Remaster** | `index.html` | Fullscreen, 60 fps, anti-aliased — gameplay identical, presentation modernized |
 
-The original is frozen — never modify it. The remaster is the active development target.
+The original is frozen — never modify its game logic. The remaster is the active development target.
 
 ## Quick Start
 ```bash
@@ -20,23 +20,23 @@ python -m http.server 8080
 # macOS / Linux
 python3 -m http.server 8080
 
-# Original:  http://localhost:8080/
-# Remaster:  http://localhost:8080/remaster/
+# Remaster:  http://localhost:8080/
+# Original:  http://localhost:8080/original/
 ```
 
 ## Repository Layout
 ```
-index.html            Original entry (320×200, pixel-exact)
-js/                   Original JS modules (do not modify)
-remaster/
-  index.html          Remaster entry (fullscreen, 16:10 letterboxed)
-  js/                 Remaster JS modules (active development)
-    main.js           Bootstrap, resize handling, focus overlay wiring
-    game.js           Engine: dual loop (55ms logic + RAF render), interpolation
-    drawEnv.js        Canvas 2D rendering — replaces pixel buffer
-    ground.js         Ground plane (extended draw distance vs original)
-    roundManager.js   Obstacle factory (spawn z pushed further than original)
-    [others]          Copied from original — unchanged game logic
+index.html            Remaster entry (fullscreen, 16:10 letterboxed)
+js/                   Remaster JS modules (active development)
+  main.js             Bootstrap, resize handling, focus overlay wiring
+  game.js             Engine: dual loop (55ms logic + RAF render), interpolation
+  drawEnv.js          Canvas 2D rendering — replaces pixel buffer
+  ground.js           Ground plane (extended draw distance vs original)
+  roundManager.js     Obstacle factory (spawn z pushed further than original)
+  [others]            Copied from original — unchanged game logic
+original/
+  index.html          Original entry (320×200, pixel-exact) — archive only
+  js/                 Original JS modules — do not modify game logic
 audio/
   BOMB.wav            Original explosion sound (recovered from gameplay footage)
 jar/
@@ -48,7 +48,7 @@ docs/
 ```
 
 ## Original — Key Technical Constraints
-These apply to `js/` only. Do NOT change any of these in the original.
+These apply to `original/js/` only. Do NOT change any of these in the original.
 
 - **Frame rate**: `setTimeout`-based loop, 55ms delay (~18 FPS). Physics are frame-coupled.
 - **Speed mode**: A key (`spcFlag=true`) schedules next tick at 0ms.
@@ -57,14 +57,14 @@ These apply to `js/` only. Do NOT change any of these in the original.
 - **Polygon rendering**: Software scanline rasterizer → `ImageData`. Do NOT use `ctx.fill()` — Canvas 2D anti-aliases, Java's `fillPolygon()` did not.
 
 ## Remaster — Key Technical Constraints
-These apply to `remaster/js/` only.
+These apply to `js/` only.
 
 - **Core game logic is untouched**: physics, PRNG, collision, round system identical to original. The continue system (C key, penalty scoring) is intentionally removed — every run starts fresh from round 1.
 - **Dual loop**: `setTimeout` at 55ms drives logic; `requestAnimationFrame` drives rendering at 60fps.
 - **Interpolation**: `_savePrevState()` snapshots obstacle positions before each tick; render lerps between prev and current using `alpha = (now - lastTickTime) / 55`.
 - **Recycling guard**: obstacle pool reuses objects — detect recycled slots by z-delta > 3 units and skip interpolation for that frame.
 - **Rendering**: Canvas 2D `ctx.fill()` paths — anti-aliased edges, no pixel buffer.
-- **Asset paths**: remaster JS references `../jiki.gif`, `../jiki2.gif`, `../audio/BOMB.wav`.
+- **Asset paths**: `js/game.js` references `jiki.gif`, `jiki2.gif`, `audio/BOMB.wav` (root-relative, no `../` prefix).
 
 ## Game Flow
 Title screen → Space to play → Dodge obstacles → 20 hits = game over → Title screen.

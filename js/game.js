@@ -11,22 +11,24 @@ const TITLE_MODE = 1;
 const DEMO_MODE = 2;
 const GAME_OVER_MODE = 3;
 
+// Tick interval that the game logic was designed for (matches original Java)
+const TICK_MS = 55;
+
 export class MainGame {
-  constructor(canvas, scoreLabel, continueLabel, hiscoreLabel, lang) {
+  constructor(canvas, scoreLabel, hiscoreLabel, lang) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
     this.scoreLabel = scoreLabel;
-    this.continueLabel = continueLabel;
     this.hiscoreLabel = hiscoreLabel;
     this.lang = lang || 0;
 
-    this.width = 320;
-    this.height = 200;
-    this.centerX = 160;
-    this.centerY = 100;
+    // Dimensions match actual canvas - updated by main.js on resize
+    this.width = canvas.width;
+    this.height = canvas.height;
+    this.centerX = canvas.width / 2;
+    this.centerY = canvas.height / 2;
 
     this.env = new DrawEnv();
-    this.env.initBuffer();
 
     this.ground = new Ground();
     this.recorder = new GameRecorder();
@@ -40,7 +42,6 @@ export class MainGame {
     this.prevScore = 0;
     this.hiscore = 0;
     this.shipCounter = 0;
-    this.contNum = 0;
     this.damaged = 0;
     this.round = 0;
     this.gameMode = TITLE_MODE;
@@ -60,18 +61,15 @@ export class MainGame {
 
     this.titleCounter = 0;
 
-    // Ranking data
     this.hiScoreEntries = null;
     this.hiScoreInfoObj = null;
 
-    // Called when a play-mode game ends: onGameOver(isNewRecord)
     this.onGameOver = null;
 
-    // Bomb sound via Web Audio API
     this.audioCtx = null;
     this.bombBuffer = null;
 
-    // Sin/cos lookup table (128 entries)
+    // Sin/cos lookup table (128 entries) — same as original
     this.si = new Float64Array(128);
     this.co = new Float64Array(128);
     for (let i = 0; i < 128; i++) {
@@ -79,10 +77,7 @@ export class MainGame {
       this.co[i] = Math.cos(Math.PI * i / 75 / 6);
     }
 
-    // mywidth2 calculation matching original
-    this.mywidth2 = (this.width * this.mywidth * 120 / 1.6 / 320) | 0;
-
-    // Rounds - matches original exactly
+    // Rounds — identical to original
     this.rounds = [
       new NormalRound(8000,    { r: 0, g: 160, b: 255 },   { r: 0, g: 200, b: 64 }, 4),
       new NormalRound(12000,   { r: 240, g: 160, b: 160 }, { r: 64, g: 180, b: 64 }, 3),
@@ -91,57 +86,70 @@ export class MainGame {
       new RoadRound(100000,    { r: 192, g: 192, b: 192 }, { r: 64, g: 180, b: 64 }, true),
       new NormalRound(1000000, { r: 0, g: 0, b: 0 },       { r: 0, g: 128, b: 64 }, 1)
     ];
-
-    // Link prev rounds
     for (let i = 1; i < this.rounds.length; i++) {
       this.rounds[i].setPrevRound(this.rounds[i - 1]);
     }
 
-    // Dual-language string tables
+    // Interpolation state
+    this._prevVx = 0;
+    this._prevShipCounter = 0;
+    this._prevLogicScore = 0;
+    this._prevDamaged = 0;
+    this._prevSkyColor = { r: 0, g: 160, b: 255 };
+    this._prevGroundColor = { r: 0, g: 200, b: 64 };
+    this._prevSnapshots = new Map();
+
+    // RAF / tick handles
+    this._timerId = null;
+    this._rafId = null;
+    this.lastTickTime = 0;
+
+    this._initUI();
+  }
+
+  _initUI() {
+    const w = this.width;
+    const h = this.height;
+    const cx = this.centerX;
+    const cy = this.centerY;
+
+    // Square-root scaling: grows with canvas size but not as aggressively as linear.
+    // At 320px → original sizes (36/12px). At 1280px → 72/24px. At 1920px → ~88/29px.
+    const scale = Math.sqrt(w / 320);
+    const titleFontSize = Math.round(36 * scale);
+    const uiFontSize = Math.max(10, Math.round(12 * scale));
+    const titleFont = `bold ${titleFontSize}px "Times New Roman", serif`;
+    const normalFont = `${uiFontSize}px "Courier New", Courier, monospace`;
+    this.normalFont = normalFont;
+
+    // mywidth2 — sprite half-width in canvas pixels
+    this.mywidth2 = (w * this.mywidth * 120 / 1.6 / 320) | 0;
+
     const toStartMsg = [
       'Click this game screen or push [space] key!!',
       '\u30AF\u30EA\u30C3\u30AF\u3059\u308B\u304B\u3001[space]key\u3092\u62BC\u3057\u3066\u4E0B\u3055\u3044'
     ];
-    const contMsgStr = [
-      'Push [C] key to start from this stage!!',
-      '\u9014\u4E2D\u304B\u3089\u59CB\u3081\u308B\u5834\u5408\u306F [C]key \u3092\u62BC\u3057\u3066\u4E0B\u3055\u3044!!'
-    ];
-    const clickMsgStr = [
-      'Click!!',
-      '\u30AF\u30EA\u30C3\u30AF\u3057\u3066\u4E0B\u3055\u3044'
-    ];
+    this.title    = new StringObject(titleFont,  '#ffffff', 'Jet slalom',          cx, cy - 20 * h / 200);
+    this.author   = new StringObject(normalFont, '#000000', 'Programed by MR-C',   cx, cy + 68 * h / 200);
+    this.startMsg = new StringObject(normalFont, '#000000', toStartMsg[this.lang],  cx, cy + 24 * h / 200);
+    this.hpage    = new StringObject(normalFont, '#000000', 'http://www.kdn.gr.jp/~shii/', cx, cy + 86 * h / 200);
 
-    // Title screen text objects
-    const titleFont = `bold ${(this.width * 32 / 320 + 4)}px "Times New Roman", serif`;
-    const normalFont = '12px "Courier New", Courier, monospace';
-    this.normalFont = normalFont;
+    this.hiScoreInfoObj = null; // will be re-created lazily on next use
+  }
 
-    this.title = new StringObject(titleFont, '#ffffff', 'Jet slalom',
-      this.centerX, this.centerY - 20 * this.width / 320);
-    this.author = new StringObject(normalFont, '#000000', 'Programed by MR-C',
-      this.centerX, this.centerY + 68);
-    this.startMsg = new StringObject(normalFont, '#000000',
-      toStartMsg[this.lang],
-      this.centerX, this.centerY + 24);
-    this.contMsg = new StringObject(normalFont, '#000000',
-      contMsgStr[this.lang],
-      this.centerX, this.centerY + 44);
-    this.clickMsg = new StringObject(normalFont, '#ff0000',
-      clickMsgStr[this.lang],
-      this.centerX, this.centerY);
-    this.hpage = new StringObject(normalFont, '#000000',
-      'http://www.kdn.gr.jp/~shii/',
-      this.centerX, this.centerY + 86);
-
-    // Timer handle
-    this._timerId = null;
+  // Called by main.js when the canvas is resized
+  onResize(w, h) {
+    this.width = w;
+    this.height = h;
+    this.centerX = w / 2;
+    this.centerY = h / 2;
+    this._initUI();
   }
 
   loadImages() {
     return new Promise((resolve) => {
       let loaded = 0;
       const check = () => { if (++loaded === 2) resolve(); };
-
       this.myImg = new Image();
       this.myImg.onload = check;
       this.myImg.onerror = check;
@@ -162,9 +170,7 @@ export class MainGame {
         .then(ab => this.audioCtx.decodeAudioData(ab))
         .then(buf => { this.bombBuffer = buf; })
         .catch(() => {});
-    } catch (e) {
-      // Audio not available
-    }
+    } catch (e) {}
   }
 
   playBombSound() {
@@ -174,18 +180,18 @@ export class MainGame {
       source.buffer = this.bombBuffer;
       source.connect(this.audioCtx.destination);
       source.start();
-    } catch (e) {
-      // Ignore audio errors
-    }
+    } catch (e) {}
   }
 
   initHiScoreInfoObj() {
+    const uiFontSize = Math.max(10, Math.round(12 * Math.sqrt(this.width / 320)));
+    const normalFont = `${uiFontSize}px "Courier New", Courier, monospace`;
     this.hiScoreInfoObj = new Array(6);
-    this.hiScoreInfoObj[0] = new StringObject(this.normalFont, '#ffffff', 'Ranking',
-      this.width / 2, 24);
+    this.hiScoreInfoObj[0] = new StringObject(normalFont, '#ffffff', 'Ranking',
+      this.width / 2, 24 * this.height / 200);
     for (let i = 1; i < 6; i++) {
-      this.hiScoreInfoObj[i] = new StringObject(this.normalFont, '#ffffff', '',
-        this.width / 8, 24 + 24 * i);
+      this.hiScoreInfoObj[i] = new StringObject(normalFont, '#ffffff', '',
+        this.width / 8, (24 + 24 * i) * this.height / 200);
       this.hiScoreInfoObj[i].setAlign(ALIGN_LEFT);
     }
   }
@@ -206,9 +212,7 @@ export class MainGame {
       rankings = rankings.slice(0, 20);
       localStorage.setItem('jslalom_rankings', JSON.stringify(rankings));
       this.loadRankingEntries(rankings);
-    } catch (e) {
-      // localStorage may be unavailable
-    }
+    } catch (e) {}
   }
 
   returnToTitle() {
@@ -229,71 +233,62 @@ export class MainGame {
   }
 
   start() {
-    // Load hiscore from localStorage
     const saved = localStorage.getItem('jslalom_hiscore');
     if (saved) {
       this.hiscore = parseInt(saved) || 0;
-      this.hiscoreLabel.textContent = 'Hi-score:' + this.hiscore;
+      this.hiscoreLabel.textContent = '' + this.hiscore;
     }
-
-    // Load hiscore replay from localStorage
     try {
       const recJson = localStorage.getItem('jslalom_hiscoreRec');
-      if (recJson) {
-        this.hiscoreRec = GameRecorder.fromJSON(JSON.parse(recJson));
-      }
-    } catch (e) {
-      // Ignore parse errors
-    }
-
-    // Load rankings from localStorage
+      if (recJson) this.hiscoreRec = GameRecorder.fromJSON(JSON.parse(recJson));
+    } catch (e) {}
     try {
       const rankings = JSON.parse(localStorage.getItem('jslalom_rankings') || '[]');
-      if (rankings.length > 0) {
-        this.loadRankingEntries(rankings);
-      }
-    } catch (e) {
-      // Ignore parse errors
-    }
+      if (rankings.length > 0) this.loadRankingEntries(rankings);
+    } catch (e) {}
 
-    // Init state
     this.obstacles.removeAll();
-    for (let i = 0; i < this.rounds.length; i++) {
-      this.rounds[i].init();
-    }
+    for (let i = 0; i < this.rounds.length; i++) this.rounds[i].init();
     this.damaged = 0;
     this.round = 0;
     this.score = 0;
     this.vx = 0;
     this.gameMode = TITLE_MODE;
 
-    // Start game loop: setTimeout-based so speed mode can skip the wait
-    this._timerId = setTimeout(() => this.tick(), 55);
+    // Kick off the 60fps render loop and the 18fps logic loop independently
+    this.lastTickTime = performance.now();
+    this._rafId = requestAnimationFrame((t) => this._rafLoop(t));
+    this._timerId = setTimeout(() => this.tick(), TICK_MS);
   }
 
   stop() {
+    if (this._timerId !== null) { clearTimeout(this._timerId); this._timerId = null; }
+    if (this._rafId !== null) { cancelAnimationFrame(this._rafId); this._rafId = null; }
+    this.gameMode = TITLE_MODE;
+  }
+
+  pause() {
     if (this._timerId !== null) {
       clearTimeout(this._timerId);
       this._timerId = null;
     }
-    this.gameMode = TITLE_MODE;
   }
 
-  startGame(mode, isContinue) {
+  resume() {
+    // Only restart the tick if the game loop is running and the tick is stopped
+    if (this._rafId !== null && this._timerId === null) {
+      this.lastTickTime = performance.now();
+      this._timerId = setTimeout(() => this.tick(), TICK_MS);
+    }
+  }
+
+  startGame(mode) {
     if (this.gameMode === PLAY_MODE || this.gameMode === GAME_OVER_MODE) return;
-
     this.vx = 0;
-    if (mode !== PLAY_MODE && mode !== DEMO_MODE) {
-      this.gameMode = TITLE_MODE;
-      return;
-    }
-
-    if (mode === DEMO_MODE && this.hiscoreRec === null) {
-      return;
-    }
+    if (mode !== PLAY_MODE && mode !== DEMO_MODE) { this.gameMode = TITLE_MODE; return; }
+    if (mode === DEMO_MODE && this.hiscoreRec === null) return;
 
     this.gameMode = mode;
-
     if (mode === PLAY_MODE) {
       this.initAudio();
       this.recorder = new GameRecorder();
@@ -302,26 +297,11 @@ export class MainGame {
     }
 
     this.obstacles.removeAll();
-    for (let i = 0; i < this.rounds.length; i++) {
-      this.rounds[i].init();
-    }
-
+    for (let i = 0; i < this.rounds.length; i++) this.rounds[i].init();
     this.damaged = 0;
     this.round = 0;
     this.score = 0;
     this.vx = 0;
-
-    if (!isContinue) {
-      this.contNum = 0;
-    } else {
-      while (this.prevScore >= this.rounds[this.round].getNextRoundScore()) {
-        this.round++;
-      }
-      if (this.round > 0) {
-        this.score = this.rounds[this.round - 1].getNextRoundScore();
-        this.contNum++;
-      }
-    }
 
     if (mode === DEMO_MODE) {
       this.round = this.hiscoreRec.startRound;
@@ -331,41 +311,18 @@ export class MainGame {
       this.recorder.startScore = this.score;
     }
 
-    this.continueLabel.textContent = '' + (this.contNum * 1000);
   }
 
   keyEvent(keyCode, isDown) {
-    // Right arrow (39) or L (76)
-    if (keyCode === 39 || keyCode === 76) {
-      this.rFlag = isDown;
-    }
-    // Left arrow (37) or J (74)
-    if (keyCode === 37 || keyCode === 74) {
-      this.lFlag = isDown;
-    }
-    // A key (65) - speed up
-    if (keyCode === 65) {
-      this.spcFlag = isDown;
-    }
+    if (keyCode === 39 || keyCode === 76) this.rFlag = isDown;
+    if (keyCode === 37 || keyCode === 74) this.lFlag = isDown;
 
     if (isDown) {
-      // Space (32) or C (67) to start — not during game-over overlay
-      if (this.gameMode !== PLAY_MODE && this.gameMode !== GAME_OVER_MODE && (keyCode === 32 || keyCode === 67)) {
-        this.startGame(PLAY_MODE, keyCode === 67);
+      if (this.gameMode !== PLAY_MODE && this.gameMode !== GAME_OVER_MODE && keyCode === 32) {
+        this.startGame(PLAY_MODE);
       }
-      // D key - demo mode
       if (this.gameMode === TITLE_MODE && keyCode === 68 && this.hiscoreRec !== null) {
-        this.startGame(DEMO_MODE, false);
-      }
-      // T key - test mode — not during game-over overlay
-      if (this.gameMode !== PLAY_MODE && this.gameMode !== GAME_OVER_MODE && keyCode === 84) {
-        this.prevScore = 110000;
-        this.contNum = 100;
-        this.startGame(PLAY_MODE, true);
-      }
-      // G key - GC hint (no-op in JS, mirrors Java's System.gc())
-      if (keyCode === 71) {
-        // no-op
+        this.startGame(DEMO_MODE);
       }
     }
   }
@@ -393,37 +350,24 @@ export class MainGame {
     }
 
     if (!lFlag && !rFlag) {
-      if (this.vx < 0) {
-        this.vx += 0.025;
-        if (this.vx > 0) this.vx = 0;
-      }
-      if (this.vx > 0) {
-        this.vx -= 0.025;
-        if (this.vx < 0) this.vx = 0;
-      }
+      if (this.vx < 0) { this.vx += 0.025; if (this.vx > 0) this.vx = 0; }
+      if (this.vx > 0) { this.vx -= 0.025; if (this.vx < 0) this.vx = 0; }
     }
   }
 
   moveObstacle() {
     let rec = this.recorder;
-    if (this.gameMode === DEMO_MODE) {
-      rec = this.hiscoreRec;
-    }
+    if (this.gameMode === DEMO_MODE) rec = this.hiscoreRec;
 
-    // Set rotation based on velocity
     const absVx = (Math.abs(this.vx) * 100) | 0;
     this.env.nowSin = this.si[absVx];
     this.env.nowCos = this.co[absVx];
-    if (this.vx > 0) {
-      this.env.nowSin = -this.env.nowSin;
-    }
+    if (this.vx > 0) this.env.nowSin = -this.env.nowSin;
 
-    // Move and collide obstacles
     let ob = this.obstacles.head.next;
     while (ob !== this.obstacles.tail) {
       const nextOb = ob.next;
       ob.move(this.vx, 0, -1.0);
-
       if (ob.points[0].z <= 1.1) {
         const halfWidth = this.mywidth * this.env.nowCos;
         if (-halfWidth < ob.points[2].x && ob.points[0].x < halfWidth) {
@@ -435,104 +379,213 @@ export class MainGame {
     }
 
     this.rounds[this.round].move(this.vx);
-    this.rounds[this.round].generateObstacle(this.obstacles, rec);
+    this.rounds[this.round].generateObstacle(this.obstacles, rec, this.vx);
   }
 
-  prt() {
-    const ctx = this.ctx;
+  // ─── Interpolation helpers ───────────────────────────────────────────────
 
-    // Draw sky into pixel buffer
-    const sky = this.rounds[this.round].getSkyColor();
+  _savePrevState() {
+    this._prevVx = this.vx;
+    this._prevShipCounter = this.shipCounter;
+    this._prevLogicScore = this.score;
+    this._prevDamaged = this.damaged;
+    this._prevSkyColor = { ...this.rounds[this.round].getSkyColor() };
+    this._prevGroundColor = { ...this.rounds[this.round].getGroundColor() };
+
+    this._prevSnapshots = new Map();
+    let ob = this.obstacles.head.next;
+    while (ob !== this.obstacles.tail) {
+      this._prevSnapshots.set(ob, [
+        { x: ob.points[0].x, y: ob.points[0].y, z: ob.points[0].z },
+        { x: ob.points[1].x, y: ob.points[1].y, z: ob.points[1].z },
+        { x: ob.points[2].x, y: ob.points[2].y, z: ob.points[2].z },
+        { x: ob.points[3].x, y: ob.points[3].y, z: ob.points[3].z },
+      ]);
+      ob = ob.next;
+    }
+  }
+
+  _lerpColor(a, b, t) {
+    return {
+      r: Math.round(a.r + t * (b.r - a.r)),
+      g: Math.round(a.g + t * (b.g - a.g)),
+      b: Math.round(a.b + t * (b.b - a.b)),
+    };
+  }
+
+  // ─── RAF render loop (60fps) ─────────────────────────────────────────────
+
+  _rafLoop(timestamp) {
+    if (this._rafId === null) return;
+    const alpha = Math.min(1, (performance.now() - this.lastTickTime) / TICK_MS);
+    this._renderFrame(alpha);
+    this._rafId = requestAnimationFrame((t) => this._rafLoop(t));
+  }
+
+  _renderFrame(alpha) {
+    const ctx = this.ctx;
+    const w = this.width;
+    const h = this.height;
+
+    this.env.setCtx(ctx, w, h);
+
+    // ── Sky ──
+    const sky = this._lerpColor(this._prevSkyColor, this.rounds[this.round].getSkyColor(), alpha);
     this.env.clearBuffer(sky.r, sky.g, sky.b);
 
-    // Score increment (every frame in play mode)
-    if (this.gameMode === PLAY_MODE) {
-      this.score += 20;
-      if (this.scFlag) {
-        this.scoreLabel.setNum(this.score);
-      }
-    }
-    this.scFlag = !this.scFlag;
+    // ── World rotation from interpolated vx (all modes) ──
+    const interpVx = this._prevVx + alpha * (this.vx - this._prevVx);
+    const idx = Math.min(127, (Math.abs(interpVx) * 100) | 0);
+    this.env.nowSin = this.si[idx] * (interpVx > 0 ? -1 : 1);
+    this.env.nowCos = this.co[idx];
 
-    // Draw ground and obstacles into pixel buffer (pixel-exact, no AA)
-    this.ground.color = this.rounds[this.round].getGroundColor();
+    // ── Ground ──
+    const gc = this._lerpColor(this._prevGroundColor, this.rounds[this.round].getGroundColor(), alpha);
+    this.ground.color = gc;
     this.ground.draw(this.env);
-    this.obstacles.draw(this.env);
 
-    // Blit pixel buffer to canvas
-    this.env.flush(ctx);
+    // ── Obstacles (all modes — title screen shows world scrolling behind it) ──
+    this._drawObstaclesInterpolated(alpha);
 
-    // Draw player ship
-    this.shipCounter++;
     if (this.gameMode !== TITLE_MODE) {
-      let shipY = (24 * this.height / 200) | 0;
-      let img = this.myImg;
+      // ── Player ship ──
+      this._drawShip(alpha, ctx);
 
-      // Alternate sprite every 4 frames
-      if (this.shipCounter % 4 > 1) {
-        img = this.myImg2;
-      }
-
-      // Bob up and down every 12 frames
-      if (this.shipCounter % 12 > 6) {
-        shipY = (22 * this.height / 200) | 0;
-      }
-
-      // Rise from bottom at game start
-      if (this.score < 200) {
-        shipY = ((12 + (this.score / 20 | 0)) * this.height / 200) | 0;
-      }
-
-      const spriteW = this.mywidth2 * 2;
-      const spriteH = (this.mywidth2 * 16 / 52) | 0;
-
-      if (img && img.complete && img.naturalWidth > 0) {
-        ctx.imageSmoothingEnabled = false;
-        ctx.drawImage(img, this.centerX - this.mywidth2, this.height - shipY, spriteW, spriteH);
-        ctx.imageSmoothingEnabled = true;
-      }
-
-      // Damage animation
-      if (this.damaged > 0) {
-        this.putbomb();
-      }
-    }
-
-    // Title screen
-    if (this.gameMode === TITLE_MODE) {
-      this.showTitle();
+      // ── Damage explosion ──
+      if (this.damaged > 0) this._drawBomb(alpha, ctx);
     } else {
-      this.titleCounter = 0;
+      this.showTitle();
     }
   }
 
-  putbomb() {
-    if (this.damaged > 20) {
-      this.endGame();
-      return;
+  // Rise factor based on obstacle's z distance.
+  // 0 = apex squashed to ground (at spawn), 1 = fully risen.
+  _obstacleRiseT(z) {
+    const FAR  = 40.5; // spawn z — completely flat here
+    const NEAR = 38;   // fully risen by here (~2.5 units = ~137ms of travel)
+    if (z >= FAR) return 0;
+    if (z <= NEAR) return 1;
+    return (FAR - z) / (FAR - NEAR);
+  }
+
+  _drawObstaclesInterpolated(alpha) {
+    const GROUND_Y = 2.0; // y-coordinate of the water/ground plane
+    let ob = this.obstacles.head.next;
+    while (ob !== this.obstacles.tail) {
+      const prev = this._prevSnapshots.get(ob);
+      if (prev) {
+        // Stash current positions
+        const cur = [
+          { x: ob.points[0].x, y: ob.points[0].y, z: ob.points[0].z },
+          { x: ob.points[1].x, y: ob.points[1].y, z: ob.points[1].z },
+          { x: ob.points[2].x, y: ob.points[2].y, z: ob.points[2].z },
+          { x: ob.points[3].x, y: ob.points[3].y, z: ob.points[3].z },
+        ];
+
+        // The obstacle pool recycles objects. If the z-delta is much larger
+        // than one tick's movement (~1 unit), this snapshot belongs to a
+        // previous obstacle that occupied the same pool slot — skip interpolation.
+        const zDelta = Math.abs(prev[0].z - cur[0].z);
+        if (zDelta < 3) {
+          // Safe: lerp into place
+          for (let i = 0; i < 4; i++) {
+            ob.points[i].x = prev[i].x + alpha * (cur[i].x - prev[i].x);
+            ob.points[i].y = prev[i].y + alpha * (cur[i].y - prev[i].y);
+            ob.points[i].z = prev[i].z + alpha * (cur[i].z - prev[i].z);
+          }
+          // Spike rise: squash apex toward ground when far, extend to full height as it nears
+          const riseT = this._obstacleRiseT(ob.points[0].z);
+          ob.points[1].y = GROUND_Y + (ob.points[1].y - GROUND_Y) * riseT;
+          ob.draw(this.env);
+          // Restore
+          for (let i = 0; i < 4; i++) {
+            ob.points[i].x = cur[i].x;
+            ob.points[i].y = cur[i].y;
+            ob.points[i].z = cur[i].z;
+          }
+        } else {
+          // Recycled slot — draw at current position with rise applied
+          const riseT = this._obstacleRiseT(cur[0].z);
+          const savedY1 = ob.points[1].y;
+          ob.points[1].y = GROUND_Y + (savedY1 - GROUND_Y) * riseT;
+          ob.draw(this.env);
+          ob.points[1].y = savedY1;
+        }
+      } else {
+        // New obstacle this tick — apply rise at current z
+        const riseT = this._obstacleRiseT(ob.points[0].z);
+        const savedY1 = ob.points[1].y;
+        ob.points[1].y = GROUND_Y + (savedY1 - GROUND_Y) * riseT;
+        ob.draw(this.env);
+        ob.points[1].y = savedY1;
+      }
+      ob = ob.next;
+    }
+  }
+
+  _drawShip(alpha, ctx) {
+    const w = this.width;
+    const h = this.height;
+
+    // Smooth fractional shipCounter for bob
+    const interpCounter = this._prevShipCounter + alpha * (this.shipCounter - this._prevShipCounter);
+
+    // Smooth sinusoidal bob instead of the original step function
+    const bobNorm = Math.sin(interpCounter * Math.PI / 6); // −1 to 1
+    const bobAmp = 2 * h / 200;
+    let shipY = (24 * h / 200) - bobNorm * bobAmp;
+
+    // Rise from bottom at game start (interpolate score for smooth rise)
+    const interpScore = this._prevLogicScore + alpha * (this.score - this._prevLogicScore);
+    if (interpScore < 200) {
+      shipY = (12 + interpScore / 20) * h / 200;
     }
 
-    if (this.damaged === 1) {
-      this.playBombSound();
-    }
+    // Banking interpolation (used for shadow lateral shift)
+    const interpVx = this._prevVx + alpha * (this.vx - this._prevVx);
 
-    const ctx = this.ctx;
+    // ── Dynamic shadow ──
+    // Blurred ellipse on the water surface; tracks ship banking and bob.
+    const shadowY = h - (7 * h / 200);
+    const shadowX = this.centerX - interpVx * 20 * w / 320;
+    // Bob: ship higher → shadow slightly smaller and dimmer
+    const heightFactor = 1 - bobNorm * 0.12;
+    const blurPx = Math.round(5 * w / 320);
+    ctx.save();
+    ctx.filter = `blur(${blurPx}px)`;
+    ctx.globalAlpha = 0.32 * Math.max(0.7, heightFactor);
+    ctx.fillStyle = 'rgb(0, 20, 60)';
+    ctx.beginPath();
+    ctx.ellipse(shadowX, shadowY, this.mywidth2 * 1.0 * heightFactor, 3.5 * h / 200 * heightFactor, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // Sprite frame alternation (discrete, every 4 ticks)
+    const img = (this.shipCounter % 4 > 1) ? this.myImg2 : this.myImg;
+
+    const spriteW = this.mywidth2 * 2;
+    const spriteH = (this.mywidth2 * 16 / 52) | 0;
+
+    if (img && img.complete && img.naturalWidth > 0) {
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(img, this.centerX - this.mywidth2, h - shipY, spriteW, spriteH);
+    }
+  }
+
+  _drawBomb(alpha, ctx) {
+    const interpDamaged = this._prevDamaged + alpha * (this.damaged - this._prevDamaged);
     const r = 255;
-    const g = Math.max(0, 255 - this.damaged * 12);
-    const b = Math.max(0, 240 - this.damaged * 12);
+    const g = Math.max(0, 255 - interpDamaged * 12);
+    const b = Math.max(0, 240 - interpDamaged * 12);
     ctx.fillStyle = `rgb(${r},${g},${b})`;
 
-    const rx = (this.damaged * 8 * this.width / 320) | 0;
-    const ry = (this.damaged * 4 * this.height / 200) | 0;
-    const cx = this.centerX;
-    // Java fillOval(cx-rx, 186*h/200-ry, rx*2, ry*2) → center at (cx, 186*h/200)
-    const cy = (186 * this.height / 200) | 0;
+    const rx = interpDamaged * 8 * this.width / 320;
+    const ry = interpDamaged * 4 * this.height / 200;
+    const cy = 186 * this.height / 200;
 
     ctx.beginPath();
-    ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+    ctx.ellipse(this.centerX, cy, rx, ry, 0, 0, Math.PI * 2);
     ctx.fill();
-
-    this.damaged++;
   }
 
   showTitle() {
@@ -542,17 +595,10 @@ export class MainGame {
 
     if (this.titleCounter >= interval && this.hiScoreEntries !== null) {
       let idx = ((this.titleCounter - interval) / interval | 0) * 5;
-      if (idx > 5) {
-        idx = 5;
-        this.titleCounter = 0;
-      }
-      if (this.hiScoreInfoObj === null) {
-        this.initHiScoreInfoObj();
-      }
+      if (idx > 5) { idx = 5; this.titleCounter = 0; }
+      if (this.hiScoreInfoObj === null) this.initHiScoreInfoObj();
       this.updateHiScoreInfoObj(idx);
-      for (let i = 0; i < 6; i++) {
-        this.hiScoreInfoObj[i].draw(ctx);
-      }
+      for (let i = 0; i < 6; i++) this.hiScoreInfoObj[i].draw(ctx);
     } else {
       this.title.draw(ctx);
       this.startMsg.draw(ctx);
@@ -567,27 +613,18 @@ export class MainGame {
       }
       this.hpage.draw(ctx);
 
-      if (this.rounds[0].isNextRound(this.prevScore)) {
-        this.contMsg.draw(ctx);
-      }
     }
 
-    this.titleCounter++;
-    if (!this.isFocus) {
-      this.clickMsg.draw(ctx);
-    }
   }
 
   endGame() {
     this.scoreLabel.setNum(this.score);
 
     const isPlay = this.gameMode === PLAY_MODE;
-    if (isPlay) {
-      this.prevScore = this.score;
-    }
+    if (isPlay) this.prevScore = this.score;
 
     let isNewRecord = false;
-    const netScore = this.score - this.contNum * 1000;
+    const netScore = this.score;
     if (netScore > this.hiscore && isPlay) {
       isNewRecord = true;
       this.hiscore = netScore;
@@ -595,48 +632,74 @@ export class MainGame {
       localStorage.setItem('jslalom_hiscore', this.hiscore.toString());
       try {
         localStorage.setItem('jslalom_hiscoreRec', JSON.stringify(this.hiscoreRec.toJSON()));
-      } catch (e) {
-        // Ignore storage errors
-      }
+      } catch (e) {}
     }
 
-    this.hiscoreLabel.textContent = 'Hi-score:' + this.hiscore;
+    this.hiscoreLabel.textContent = '' + this.hiscore;
 
     if (isPlay) {
-      // Show game-over overlay; ranking saved when player dismisses it
       this.gameMode = GAME_OVER_MODE;
       if (this.onGameOver) this.onGameOver(isNewRecord);
     } else {
-      // Demo mode ended — return to title silently
       this.gameMode = TITLE_MODE;
     }
   }
 
+  // ─── Logic tick (~18fps, 55ms) ────────────────────────────────────────────
+
   tick() {
-    // Java's TimerNotifier fires every 55ms from when it last fired,
-    // independent of how long the game tick takes. To match that behaviour
-    // we measure tick start time and subtract elapsed from the 55ms budget
-    // so the next tick fires ~55ms after this one started, not after it ended.
     const tickStart = this.spcFlag ? 0 : performance.now();
 
-    // GAME_OVER_MODE: canvas frozen, overlay visible — just keep timer ticking
     if (this.gameMode !== GAME_OVER_MODE) {
+      // Snapshot current state for interpolation against this tick's result
+      this._savePrevState();
+      this.lastTickTime = performance.now();
+
       // Round advancement
-      if (this.rounds[this.round].isNextRound(this.score)) {
-        this.round++;
-      }
+      if (this.rounds[this.round].isNextRound(this.score)) this.round++;
 
       this.keyOperate();
+
+      // Track damage before collision detection
+      const damageBeforeMove = this.damaged;
       this.moveObstacle();
-      this.prt();
+
+      if (damageBeforeMove === 0 && this.damaged > 0) {
+        // Fresh collision this tick: start animation at 1, play sound
+        this.damaged = 1;
+        this.playBombSound();
+      } else if (this.damaged > 0) {
+        // Continue existing animation
+        if (this.damaged > 20) {
+          this.endGame();
+        } else {
+          this.damaged++;
+        }
+      }
+
+      // Score increment (play mode only)
+      if (this.gameMode === PLAY_MODE) {
+        this.score += 20;
+        if (this.scFlag) this.scoreLabel.setNum(this.score);
+      }
+      this.scFlag = !this.scFlag;
+
+      this.shipCounter++;
+
+      // titleCounter advances at logic rate; reset when not on title screen
+      if (this.gameMode === TITLE_MODE) {
+        this.titleCounter++;
+      } else {
+        this.titleCounter = 0;
+      }
     }
 
+    // Schedule next logic tick
     if (this.spcFlag) {
-      // A held: run uncapped (0ms delay), matching Java's skip-the-wait behaviour
       this._timerId = setTimeout(() => this.tick(), 0);
     } else {
       const elapsed = performance.now() - tickStart;
-      this._timerId = setTimeout(() => this.tick(), Math.max(0, 55 - elapsed));
+      this._timerId = setTimeout(() => this.tick(), Math.max(0, TICK_MS - elapsed));
     }
   }
 }
