@@ -16,7 +16,7 @@ python -m http.server 8080
 
 ## Architecture at a Glance
 ```
-index.html          Entry page (320×200 canvas, CSS-scaled 2×)
+index.html          Entry page (320×200 canvas, native resolution — no CSS scaling)
 js/
   main.js           Bootstrap: image loading, input binding, game init
   game.js           Core engine (game loop, physics, rendering, states)
@@ -43,7 +43,7 @@ decomp/             Decompiled Java source — authoritative behavioral referenc
 - **Frame rate**: `setTimeout`-based loop, 55ms delay normally (~18 FPS). Physics are frame-coupled — do NOT decouple.
 - **Speed mode**: When A is held (`spcFlag=true`), next tick is scheduled at 0ms — matching Java's "skip the wait" behavior for truly uncapped FPS.
 - **PRNG**: Uses `Math.imul` for 32-bit integer math. Must stay deterministic for replay.
-- **Resolution**: Native 320×200, CSS-scaled with `image-rendering: pixelated`.
+- **Resolution**: Native 320×200, displayed 1:1 — no CSS scaling. This matches the original Java applet exactly.
 - **No build tools**: ES modules loaded via `<script type="module">`. Must work with a static file server.
 - **Polygon rendering**: Ground and obstacles use a software scanline rasterizer writing to an `ImageData` pixel buffer (`drawEnv.js`). Do NOT use `ctx.fill()` for game-world polygons — Canvas 2D anti-aliases edges, Java's `fillPolygon()` did not. Text and the bomb ellipse use Canvas 2D directly (AA is correct there, matching original Java AWT).
 

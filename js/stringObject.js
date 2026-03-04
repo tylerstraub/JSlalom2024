@@ -12,17 +12,23 @@ export class StringObject {
     this.align = ALIGN_CENTER;
     this._strWidth = -1;
     this._strHeight = -1;
+    this._fontSize = parseInt(font) || 12;
+  }
+
+  _measure(ctx) {
+    ctx.font = this.font;
+    const m = ctx.measureText(this.str);
+    this._strWidth = m.width;
+    // Match Java's FontMetrics.getHeight() = ascent + descent
+    this._strHeight = (m.fontBoundingBoxAscent || 0) + (m.fontBoundingBoxDescent || 0)
+                      || this._fontSize;
   }
 
   draw(ctx) {
     if (this.str === null) return;
-    ctx.fillStyle = this.color;
-    ctx.font = this.font;
 
     if (this._strWidth < 0) {
-      const metrics = ctx.measureText(this.str);
-      this._strWidth = metrics.width;
-      this._strHeight = parseInt(this.font) || 12;
+      this._measure(ctx);
     }
 
     let drawX = this.x;
@@ -30,16 +36,18 @@ export class StringObject {
       drawX = this.x - this._strWidth / 2;
     }
 
-    ctx.textBaseline = 'middle';
-    ctx.fillText(this.str, drawX, this.y);
+    // Match Java: drawString(str, x, this.y + strHeight/2) — baseline positioning
+    const baselineY = this.y + this._strHeight / 2;
+
+    ctx.fillStyle = this.color;
+    ctx.font = this.font;
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText(this.str, drawX, baselineY);
 
     if (this.isUnderLine) {
-      const lineY = this.y + this._strHeight / 2 + 1;
-      ctx.beginPath();
-      ctx.moveTo(drawX, lineY);
-      ctx.lineTo(drawX + this._strWidth, lineY);
-      ctx.strokeStyle = this.color;
-      ctx.stroke();
+      const lineY = Math.round(baselineY + 1);
+      ctx.fillStyle = this.color;
+      ctx.fillRect(Math.round(drawX), lineY, Math.ceil(this._strWidth), 1);
     }
   }
 

@@ -480,7 +480,6 @@ export class MainGame {
       const spriteH = (this.mywidth2 * 16 / 52) | 0;
 
       if (img && img.complete && img.naturalWidth > 0) {
-        ctx.imageSmoothingEnabled = false;
         ctx.drawImage(img, this.centerX - this.mywidth2, this.height - shipY, spriteW, spriteH);
       }
 

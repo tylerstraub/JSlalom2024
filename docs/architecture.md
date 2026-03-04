@@ -20,7 +20,7 @@ Each frame (55ms nominal):
 2. Draw ground quad into pixel buffer (scanline fill)
 3. Draw all active obstacles into pixel buffer (scanline fill, each has 2 triangle faces)
 4. Blit pixel buffer to canvas via `ctx.putImageData()`
-5. Draw player sprite with `ctx.imageSmoothingEnabled = false` (alternates jiki.gif/jiki2.gif every 4 frames, bobs every 12)
+5. Draw player sprite with Canvas 2D default bilinear smoothing (alternates jiki.gif/jiki2.gif every 4 frames, bobs every 12) — matches Java's `SCALE_AREA_AVERAGING`
 6. Draw damage explosion oval if hit (`ctx.ellipse`)
 7. Draw title screen text overlay if in TITLE_MODE (`ctx.fillText`)
 
