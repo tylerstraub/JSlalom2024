@@ -49,7 +49,6 @@ export class MainGame {
 
     this.rFlag = false;
     this.lFlag = false;
-    this.spcFlag = false;
     this.isFocus = true;
     this.isFocus2 = true;
     this.isInPage = false;
@@ -648,7 +647,7 @@ export class MainGame {
   // ─── Logic tick (~18fps, 55ms) ────────────────────────────────────────────
 
   tick() {
-    const tickStart = this.spcFlag ? 0 : performance.now();
+    const tickStart = performance.now();
 
     if (this.gameMode !== GAME_OVER_MODE) {
       // Snapshot current state for interpolation against this tick's result
@@ -695,11 +694,7 @@ export class MainGame {
     }
 
     // Schedule next logic tick
-    if (this.spcFlag) {
-      this._timerId = setTimeout(() => this.tick(), 0);
-    } else {
-      const elapsed = performance.now() - tickStart;
-      this._timerId = setTimeout(() => this.tick(), Math.max(0, TICK_MS - elapsed));
-    }
+    const elapsed = performance.now() - tickStart;
+    this._timerId = setTimeout(() => this.tick(), Math.max(0, TICK_MS - elapsed));
   }
 }
