@@ -333,7 +333,6 @@ export class MainGame {
   keyEvent(keyCode, isDown) {
     if (keyCode === 39 || keyCode === 76) this.rFlag = isDown;
     if (keyCode === 37 || keyCode === 74) this.lFlag = isDown;
-    if (keyCode === 65) this.spcFlag = isDown;
 
     if (isDown) {
       if (this.gameMode !== PLAY_MODE && this.gameMode !== GAME_OVER_MODE && (keyCode === 32 || keyCode === 67)) {
@@ -402,7 +401,7 @@ export class MainGame {
     }
 
     this.rounds[this.round].move(this.vx);
-    this.rounds[this.round].generateObstacle(this.obstacles, rec);
+    this.rounds[this.round].generateObstacle(this.obstacles, rec, this.vx);
   }
 
   // ─── Interpolation helpers ───────────────────────────────────────────────

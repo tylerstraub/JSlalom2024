@@ -156,6 +156,7 @@ The game-over overlay takes priority — `triggerPause()` is a no-op while `over
 | Rise NEAR | `remaster/js/game.js` `_obstacleRiseT()` | `38` | Apex fully extended; raise toward FAR for a snappier rise |
 | Ground depth | `remaster/js/ground.js` | `55` | How far the terrain plane extends into the horizon |
 | Recycling guard | `remaster/js/game.js` `_drawObstaclesInterpolated()` | `zDelta < 3` | Threshold to detect pool-recycled obstacle slots |
+| Spawn compensation | `remaster/js/roundManager.js` `createObstacleRandom()` | `39` ticks | Lead time used to offset spawn x by `−vx × 39`; matches z-travel from spawn (40.5) to collision zone (1.1) |
 
 ---
 
@@ -189,7 +190,7 @@ The remaster lives in `remaster/` but shares assets from the repository root:
 | `js/game.js` | Rewritten | Dual loop, interpolation, separated render from tick logic |
 | `js/drawEnv.js` | Rewritten | Canvas 2D paths, scale-aware projection, no pixel buffer |
 | `js/ground.js` | Modified | Extended draw distance (z=55 vs z=28) |
-| `js/roundManager.js` | Modified | Obstacle spawn z pushed from 25.5 → 40.5 |
+| `js/roundManager.js` | Modified | Obstacle spawn z pushed from 25.5 → 40.5; velocity-compensated spawn x so obstacles always arrive at their random position regardless of banking angle |
 | `js/stringObject.js` | Copied | Unchanged — StringObject API is the same |
 | All other `js/` | Copied | Unchanged — game logic, PRNG, rounds, recorder, obstacle pool |
 
