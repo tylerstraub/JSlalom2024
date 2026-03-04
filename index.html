@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Jet Slalom</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    font-family: 'Courier New', Courier, monospace;
+    color: #fff;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  #score-bar {
+    background: #a0d0b0;
+    color: #000;
+    width: 640px;
+    max-width: 100vw;
+    padding: 4px 10px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 13px;
+    font-family: sans-serif;
+  }
+  #score-bar span { white-space: nowrap; }
+  #score-display, #continue-display, #hiscore-display {
+    font-family: 'Courier New', monospace;
+    font-weight: bold;
+  }
+  #game-canvas {
+    display: block;
+    width: 640px;
+    max-width: 100vw;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    cursor: pointer;
+  }
+  #hiscore-bar {
+    background: #a0d0b0;
+    color: #000;
+    width: 640px;
+    max-width: 100vw;
+    padding: 4px 10px;
+    font-size: 13px;
+    font-family: sans-serif;
+  }
+  #touch-controls {
+    display: none;
+    width: 640px;
+    max-width: 100vw;
+    margin-top: 8px;
+    gap: 8px;
+  }
+  .touch-btn {
+    flex: 1;
+    padding: 20px;
+    font-size: 24px;
+    background: #333;
+    color: #fff;
+    border: 2px solid #666;
+    border-radius: 8px;
+    text-align: center;
+    touch-action: none;
+  }
+  .touch-btn:active { background: #555; }
+  @media (pointer: coarse) {
+    #touch-controls { display: flex; }
+  }
+  @media (max-width: 640px) {
+    #score-bar, #game-canvas, #hiscore-bar, #touch-controls { width: 100vw; }
+  }
+</style>
+</head>
+<body>
+  <div id="score-bar">
+    <span>Score:</span>
+    <span id="score-display">000000</span>
+    <span>Continue penalty:</span>
+    <span id="continue-display">0</span>
+  </div>
+  <canvas id="game-canvas" width="320" height="200"></canvas>
+  <div id="hiscore-bar">
+    <span id="hiscore-display">Your Hi-score:0</span>
+  </div>
+  <div id="touch-controls">
+    <div class="touch-btn" id="touch-left">&#9664; LEFT</div>
+    <div class="touch-btn" id="touch-right">RIGHT &#9654;</div>
+  </div>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

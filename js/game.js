@@ -1,0 +1,485 @@
+import { DrawEnv } from './drawEnv.js';
+import { Ground } from './ground.js';
+import { GameRecorder } from './gameRecorder.js';
+import { ObstacleCollection } from './obstacle.js';
+import { NormalRound } from './normalRound.js';
+import { RoadRound } from './roadRound.js';
+import { StringObject } from './stringObject.js';
+
+const PLAY_MODE = 0;
+const TITLE_MODE = 1;
+const DEMO_MODE = 2;
+
+export class MainGame {
+  constructor(canvas, scoreLabel, continueLabel, hiscoreLabel) {
+    this.canvas = canvas;
+    this.ctx = canvas.getContext('2d');
+    this.scoreLabel = scoreLabel;
+    this.continueLabel = continueLabel;
+    this.hiscoreLabel = hiscoreLabel;
+
+    this.width = 320;
+    this.height = 200;
+    this.centerX = 160;
+    this.centerY = 100;
+
+    this.env = new DrawEnv();
+    this.ground = new Ground();
+    this.recorder = new GameRecorder();
+    this.hiscoreRec = null;
+    this.obstacles = new ObstacleCollection();
+
+    this.vx = 0;
+    this.mywidth = 0.7;
+    this.mywidth2 = 0;
+    this.score = 0;
+    this.prevScore = 0;
+    this.hiscore = 0;
+    this.shipCounter = 0;
+    this.contNum = 0;
+    this.damaged = 0;
+    this.round = 0;
+    this.gameMode = TITLE_MODE;
+    this.scFlag = true;
+
+    this.rFlag = false;
+    this.lFlag = false;
+    this.spcFlag = false;
+
+    this.myImg = null;
+    this.myImg2 = null;
+
+    this.titleCounter = 0;
+
+    // Bomb sound via Web Audio API
+    this.audioCtx = null;
+
+    // Sin/cos lookup table (128 entries)
+    this.si = new Float64Array(128);
+    this.co = new Float64Array(128);
+    for (let i = 0; i < 128; i++) {
+      this.si[i] = Math.sin(Math.PI * i / 75 / 6);
+      this.co[i] = Math.cos(Math.PI * i / 75 / 6);
+    }
+
+    // mywidth2 calculation matching original
+    this.mywidth2 = (this.width * this.mywidth * 120 / 1.6 / 320) | 0;
+
+    // Rounds - matches original exactly
+    this.rounds = [
+      new NormalRound(8000,    { r: 0, g: 160, b: 255 },   { r: 0, g: 200, b: 64 }, 4),
+      new NormalRound(12000,   { r: 240, g: 160, b: 160 }, { r: 64, g: 180, b: 64 }, 3),
+      new NormalRound(25000,   { r: 0, g: 0, b: 0 },       { r: 0, g: 128, b: 64 }, 2),
+      new RoadRound(40000,     { r: 0, g: 180, b: 240 },   { r: 0, g: 200, b: 64 }, false),
+      new RoadRound(100000,    { r: 192, g: 192, b: 192 }, { r: 64, g: 180, b: 64 }, true),
+      new NormalRound(1000000, { r: 0, g: 0, b: 0 },       { r: 0, g: 128, b: 64 }, 1)
+    ];
+
+    // Link prev rounds
+    for (let i = 1; i < this.rounds.length; i++) {
+      this.rounds[i].setPrevRound(this.rounds[i - 1]);
+    }
+
+    // Title screen text objects
+    const titleFont = `bold ${(this.width * 32 / 320 + 4)}px "Times New Roman", serif`;
+    const normalFont = '12px "Courier New", Courier, monospace';
+
+    this.title = new StringObject(titleFont, '#ffffff', 'Jet slalom',
+      this.centerX, this.centerY - 20 * this.width / 320);
+    this.author = new StringObject(normalFont, '#000000', 'Programed by MR-C',
+      this.centerX, this.centerY + 68);
+    this.startMsg = new StringObject(normalFont, '#000000',
+      'Click this game screen or push [space] key!!',
+      this.centerX, this.centerY + 24);
+    this.contMsg = new StringObject(normalFont, '#000000',
+      'Push [C] key to start from this stage!!',
+      this.centerX, this.centerY + 44);
+
+    // Timer handle
+    this._intervalId = null;
+  }
+
+  loadImages() {
+    return new Promise((resolve) => {
+      let loaded = 0;
+      const check = () => { if (++loaded === 2) resolve(); };
+
+      this.myImg = new Image();
+      this.myImg.onload = check;
+      this.myImg.onerror = check;
+      this.myImg.src = 'jiki.gif';
+
+      this.myImg2 = new Image();
+      this.myImg2.onload = check;
+      this.myImg2.onerror = check;
+      this.myImg2.src = 'jiki2.gif';
+    });
+  }
+
+  initAudio() {
+    try {
+      this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    } catch (e) {
+      // Audio not available
+    }
+  }
+
+  playBombSound() {
+    if (!this.audioCtx) return;
+    try {
+      const ctx = this.audioCtx;
+      const duration = 0.3;
+      const bufferSize = ctx.sampleRate * duration;
+      const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) {
+        const t = i / ctx.sampleRate;
+        // White noise with exponential decay
+        data[i] = (Math.random() * 2 - 1) * Math.exp(-t * 10) * 0.5;
+      }
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(ctx.destination);
+      source.start();
+    } catch (e) {
+      // Ignore audio errors
+    }
+  }
+
+  start() {
+    // Load hiscore from localStorage
+    const saved = localStorage.getItem('jslalom_hiscore');
+    if (saved) {
+      this.hiscore = parseInt(saved) || 0;
+      this.hiscoreLabel.textContent = 'Your Hi-score:' + this.hiscore;
+    }
+
+    // Init state
+    this.obstacles.removeAll();
+    for (let i = 0; i < this.rounds.length; i++) {
+      this.rounds[i].init();
+    }
+    this.damaged = 0;
+    this.round = 0;
+    this.score = 0;
+    this.vx = 0;
+    this.gameMode = TITLE_MODE;
+
+    // Start game loop at ~18 FPS (55ms interval)
+    this._intervalId = setInterval(() => this.tick(), 55);
+  }
+
+  stop() {
+    if (this._intervalId !== null) {
+      clearInterval(this._intervalId);
+      this._intervalId = null;
+    }
+    this.gameMode = TITLE_MODE;
+  }
+
+  startGame(mode, isContinue) {
+    if (this.gameMode === PLAY_MODE) return;
+
+    this.vx = 0;
+    if (mode !== PLAY_MODE && mode !== DEMO_MODE) {
+      this.gameMode = TITLE_MODE;
+      return;
+    }
+
+    if (mode === DEMO_MODE && this.hiscoreRec === null) {
+      return;
+    }
+
+    this.gameMode = mode;
+
+    if (mode === PLAY_MODE) {
+      this.initAudio();
+      this.recorder = new GameRecorder();
+    } else {
+      this.hiscoreRec.toStart();
+    }
+
+    this.obstacles.removeAll();
+    for (let i = 0; i < this.rounds.length; i++) {
+      this.rounds[i].init();
+    }
+
+    this.damaged = 0;
+    this.round = 0;
+    this.score = 0;
+    this.vx = 0;
+
+    if (!isContinue) {
+      this.contNum = 0;
+    } else {
+      while (this.prevScore >= this.rounds[this.round].getNextRoundScore()) {
+        this.round++;
+      }
+      if (this.round > 0) {
+        this.score = this.rounds[this.round - 1].getNextRoundScore();
+        this.contNum++;
+      }
+    }
+
+    if (mode === DEMO_MODE) {
+      this.round = this.hiscoreRec.startRound;
+      this.score = this.hiscoreRec.startScore;
+    } else {
+      this.recorder.startRound = this.round;
+      this.recorder.startScore = this.score;
+    }
+
+    this.continueLabel.textContent = '' + (this.contNum * 1000);
+  }
+
+  keyEvent(keyCode, isDown) {
+    // Right arrow (39) or L (76)
+    if (keyCode === 39 || keyCode === 76) {
+      this.rFlag = isDown;
+    }
+    // Left arrow (37) or J (74)
+    if (keyCode === 37 || keyCode === 74) {
+      this.lFlag = isDown;
+    }
+    // A key (65) - speed up
+    if (keyCode === 65) {
+      this.spcFlag = isDown;
+    }
+
+    if (isDown) {
+      // Space (32) or C (67) to start
+      if (this.gameMode !== PLAY_MODE && (keyCode === 32 || keyCode === 67)) {
+        this.startGame(PLAY_MODE, keyCode === 67);
+      }
+      // D key - demo mode
+      if (this.gameMode === TITLE_MODE && keyCode === 68 && this.hiscoreRec !== null) {
+        this.startGame(DEMO_MODE, false);
+      }
+      // T key - test mode
+      if (this.gameMode !== PLAY_MODE && keyCode === 84) {
+        this.prevScore = 110000;
+        this.contNum = 100;
+        this.startGame(PLAY_MODE, true);
+      }
+    }
+  }
+
+  keyOperate() {
+    let rFlag = this.rFlag;
+    let lFlag = this.lFlag;
+
+    if (this.gameMode === PLAY_MODE) {
+      let status = 0;
+      if (rFlag) status |= 2;
+      if (lFlag) status |= 1;
+      this.recorder.writeStatus(status);
+    } else if (this.gameMode === DEMO_MODE) {
+      const status = this.hiscoreRec.readStatus();
+      rFlag = (status & 2) !== 0;
+      lFlag = (status & 1) !== 0;
+    }
+
+    if (this.damaged === 0 && (this.gameMode === PLAY_MODE || this.gameMode === DEMO_MODE)) {
+      if (rFlag) this.vx -= 0.1;
+      if (lFlag) this.vx += 0.1;
+      if (this.vx < -0.6) this.vx = -0.6;
+      if (this.vx > 0.6) this.vx = 0.6;
+    }
+
+    if (!lFlag && !rFlag) {
+      if (this.vx < 0) {
+        this.vx += 0.025;
+        if (this.vx > 0) this.vx = 0;
+      }
+      if (this.vx > 0) {
+        this.vx -= 0.025;
+        if (this.vx < 0) this.vx = 0;
+      }
+    }
+  }
+
+  moveObstacle() {
+    let rec = this.recorder;
+    if (this.gameMode === DEMO_MODE) {
+      rec = this.hiscoreRec;
+    }
+
+    // Set rotation based on velocity
+    const absVx = (Math.abs(this.vx) * 100) | 0;
+    this.env.nowSin = this.si[absVx];
+    this.env.nowCos = this.co[absVx];
+    if (this.vx > 0) {
+      this.env.nowSin = -this.env.nowSin;
+    }
+
+    // Move and collide obstacles
+    let ob = this.obstacles.head.next;
+    while (ob !== this.obstacles.tail) {
+      const nextOb = ob.next;
+      ob.move(this.vx, 0, -1.0);
+
+      if (ob.points[0].z <= 1.1) {
+        const halfWidth = this.mywidth * this.env.nowCos;
+        if (-halfWidth < ob.points[2].x && ob.points[0].x < halfWidth) {
+          this.damaged++;
+        }
+        ob.release();
+      }
+      ob = nextOb;
+    }
+
+    this.rounds[this.round].move(this.vx);
+    this.rounds[this.round].generateObstacle(this.obstacles, rec);
+  }
+
+  prt() {
+    const ctx = this.ctx;
+
+    // Draw sky
+    const sky = this.rounds[this.round].getSkyColor();
+    ctx.fillStyle = `rgb(${sky.r},${sky.g},${sky.b})`;
+    ctx.fillRect(0, 0, this.width, this.height);
+
+    // Score increment (every frame in play mode)
+    if (this.gameMode === PLAY_MODE) {
+      this.score += 20;
+      if (this.scFlag) {
+        this.scoreLabel.setNum(this.score);
+      }
+    }
+    this.scFlag = !this.scFlag;
+
+    // Draw ground
+    this.ground.color = this.rounds[this.round].getGroundColor();
+    this.ground.draw(ctx, this.env);
+
+    // Draw obstacles
+    this.obstacles.draw(ctx, this.env);
+
+    // Draw player ship
+    this.shipCounter++;
+    if (this.gameMode !== TITLE_MODE) {
+      let shipY = (24 * this.height / 200) | 0;
+      let img = this.myImg;
+
+      // Alternate sprite every 4 frames
+      if (this.shipCounter % 4 > 1) {
+        img = this.myImg2;
+      }
+
+      // Bob up and down every 12 frames
+      if (this.shipCounter % 12 > 6) {
+        shipY = (22 * this.height / 200) | 0;
+      }
+
+      // Rise from bottom at game start
+      if (this.score < 200) {
+        shipY = ((12 + (this.score / 20 | 0)) * this.height / 200) | 0;
+      }
+
+      const spriteW = this.mywidth2 * 2;
+      const spriteH = (this.mywidth2 * 16 / 52) | 0;
+
+      if (img && img.complete && img.naturalWidth > 0) {
+        ctx.drawImage(img, this.centerX - this.mywidth2, this.height - shipY, spriteW, spriteH);
+      }
+
+      // Damage animation
+      if (this.damaged > 0) {
+        this.putbomb();
+      }
+    }
+
+    // Title screen
+    if (this.gameMode === TITLE_MODE) {
+      this.showTitle();
+    } else {
+      this.titleCounter = 0;
+    }
+  }
+
+  putbomb() {
+    if (this.damaged > 20) {
+      this.endGame();
+      return;
+    }
+
+    if (this.damaged === 1) {
+      this.playBombSound();
+    }
+
+    const ctx = this.ctx;
+    const r = 255;
+    const g = Math.max(0, 255 - this.damaged * 12);
+    const b = Math.max(0, 240 - this.damaged * 12);
+    ctx.fillStyle = `rgb(${r},${g},${b})`;
+
+    const rx = (this.damaged * 8 * this.width / 320) | 0;
+    const ry = (this.damaged * 4 * this.height / 200) | 0;
+    const cx = this.centerX;
+    // Java fillOval(cx-rx, 186*h/200-ry, rx*2, ry*2) → center at (cx, 186*h/200)
+    const cy = (186 * this.height / 200) | 0;
+
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    this.damaged++;
+  }
+
+  showTitle() {
+    const ctx = this.ctx;
+    this.vx = 0;
+
+    this.title.draw(ctx);
+    this.startMsg.draw(ctx);
+    this.author.draw(ctx);
+
+    if (this.rounds[0].isNextRound(this.prevScore)) {
+      this.contMsg.draw(ctx);
+    }
+
+    this.titleCounter++;
+  }
+
+  endGame() {
+    this.scoreLabel.setNum(this.score);
+
+    if (this.gameMode === PLAY_MODE) {
+      this.prevScore = this.score;
+    }
+
+    const netScore = this.score - this.contNum * 1000;
+    if (netScore > this.hiscore && this.gameMode === PLAY_MODE) {
+      this.hiscore = netScore;
+      this.hiscoreRec = this.recorder;
+      // Save to localStorage
+      localStorage.setItem('jslalom_hiscore', this.hiscore.toString());
+    }
+
+    this.hiscoreLabel.textContent = 'Your Hi-score:' + this.hiscore;
+    this.gameMode = TITLE_MODE;
+  }
+
+  tick() {
+    // Round advancement
+    if (this.rounds[this.round].isNextRound(this.score)) {
+      this.round++;
+    }
+
+    this.keyOperate();
+    this.moveObstacle();
+    this.prt();
+
+    // Speed mode: run extra ticks when A is held (skip timer wait)
+    // In setInterval mode, we just run two ticks when spcFlag is set
+    if (this.spcFlag && this.gameMode !== TITLE_MODE) {
+      if (this.rounds[this.round].isNextRound(this.score)) {
+        this.round++;
+      }
+      this.keyOperate();
+      this.moveObstacle();
+      this.prt();
+    }
+  }
+}
