@@ -65,7 +65,7 @@ The obstacle pool reuses JS objects. If a released slot is immediately allocated
 
 ## Rendering Pipeline
 
-### Original (`js/drawEnv.js`)
+### Original (`original/js/drawEnv.js`)
 ```
 clearBuffer(r,g,b)     → fill Uint8ClampedArray
 drawPolygon / drawFace → scanline rasterizer → Uint8ClampedArray

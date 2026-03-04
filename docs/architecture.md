@@ -190,6 +190,8 @@ Expanding ellipse centered at (centerX, 186*h/200). Each frame: `damaged++`, rad
 | G | 71 | No-op — mirrors Java's `System.gc()` call |
 
 ## File Mapping (JS ← Java)
+All JS modules listed below live under `original/js/`.
+
 | JS Module | Java Source |
 |-----------|------------|
 | game.js | MainGame.java |
