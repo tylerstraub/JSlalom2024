@@ -480,7 +480,9 @@ export class MainGame {
       const spriteH = (this.mywidth2 * 16 / 52) | 0;
 
       if (img && img.complete && img.naturalWidth > 0) {
+        ctx.imageSmoothingEnabled = false;
         ctx.drawImage(img, this.centerX - this.mywidth2, this.height - shipY, spriteW, spriteH);
+        ctx.imageSmoothingEnabled = true;
       }
 
       // Damage animation
@@ -597,14 +599,13 @@ export class MainGame {
     this.gameMode = TITLE_MODE;
   }
 
-  _scheduleNext() {
-    // When spcFlag (A held): schedule immediately (0ms), matching Java's
-    // "skip the wait" behavior for truly uncapped speed mode.
-    // Otherwise: 55ms fixed interval (~18 FPS).
-    this._timerId = setTimeout(() => this.tick(), this.spcFlag ? 0 : 55);
-  }
-
   tick() {
+    // Java's TimerNotifier fires every 55ms from when it last fired,
+    // independent of how long the game tick takes. To match that behaviour
+    // we measure tick start time and subtract elapsed from the 55ms budget
+    // so the next tick fires ~55ms after this one started, not after it ended.
+    const tickStart = this.spcFlag ? 0 : performance.now();
+
     // Round advancement
     if (this.rounds[this.round].isNextRound(this.score)) {
       this.round++;
@@ -614,6 +615,12 @@ export class MainGame {
     this.moveObstacle();
     this.prt();
 
-    this._scheduleNext();
+    if (this.spcFlag) {
+      // A held: run uncapped (0ms delay), matching Java's skip-the-wait behaviour
+      this._timerId = setTimeout(() => this.tick(), 0);
+    } else {
+      const elapsed = performance.now() - tickStart;
+      this._timerId = setTimeout(() => this.tick(), Math.max(0, 55 - elapsed));
+    }
   }
 }
