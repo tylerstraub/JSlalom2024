@@ -59,7 +59,7 @@ These apply to `js/` only. Do NOT change any of these in the original.
 ## Remaster — Key Technical Constraints
 These apply to `remaster/js/` only.
 
-- **Game logic is untouched**: all physics, PRNG, collision, round system identical to original.
+- **Core game logic is untouched**: physics, PRNG, collision, round system identical to original. The continue system (C key, penalty scoring) is intentionally removed — every run starts fresh from round 1.
 - **Dual loop**: `setTimeout` at 55ms drives logic; `requestAnimationFrame` drives rendering at 60fps.
 - **Interpolation**: `_savePrevState()` snapshots obstacle positions before each tick; render lerps between prev and current using `alpha = (now - lastTickTime) / 55`.
 - **Recycling guard**: obstacle pool reuses objects — detect recycled slots by z-delta > 3 units and skip interpolation for that frame.

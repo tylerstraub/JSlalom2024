@@ -2,7 +2,7 @@
 
 ## Overview
 
-`remaster/` is a modernised presentation layer built on top of the original restored engine. The goal is a fullscreen, 60 fps, anti-aliased experience that feels like a contemporary indie game while keeping gameplay behaviour bit-for-bit identical to the 1997 Java applet.
+`remaster/` is a modernised presentation layer built on top of the original restored engine. The goal is a fullscreen, 60 fps, anti-aliased experience that feels like a contemporary indie game while keeping core physics and gameplay behaviour identical to the 1997 Java applet.
 
 **What changes**: rendering pipeline, frame timing, canvas resolution, visual polish, continue system removed.
 **What doesn't change**: physics, PRNG, collision detection, round system, replay recording — all untouched.
@@ -185,9 +185,9 @@ The remaster lives in `remaster/` but shares assets from the repository root:
 
 | File | Status | Notes |
 |------|--------|-------|
-| `index.html` | Rewritten | Fullscreen canvas, HUD overlay, modern game-over panel, focus overlay |
-| `js/main.js` | Rewritten | Letterbox resize, focus overlay wiring |
-| `js/game.js` | Rewritten | Dual loop, interpolation, separated render from tick logic |
+| `index.html` | Rewritten | Fullscreen canvas, HUD (score + hi-score), game-over panel with credit, focus overlay, retro-consistent typography (Times New Roman / Courier New) |
+| `js/main.js` | Rewritten | Letterbox resize, focus/pause wiring, mouse-start input guard (steering flags only set in PLAY_MODE) |
+| `js/game.js` | Rewritten | Dual loop, interpolation, separated render from tick logic, continue system removed, sqrt font scaling |
 | `js/drawEnv.js` | Rewritten | Canvas 2D paths, scale-aware projection, no pixel buffer |
 | `js/ground.js` | Modified | Extended draw distance (z=55 vs z=28) |
 | `js/roundManager.js` | Modified | Obstacle spawn z pushed from 25.5 → 40.5; velocity-compensated spawn x so obstacles always arrive at their random position regardless of banking angle |
