@@ -42,4 +42,30 @@ export class GameRecorder {
     this.pos = 0;
     this.random.setSeed(this.seed);
   }
+
+  toJSON() {
+    const wordCount = Math.ceil(this.maxpos / 16);
+    const dataSlice = Array.from(this.data.subarray(0, wordCount));
+    return {
+      seed: this.seed,
+      maxpos: this.maxpos,
+      startRound: this.startRound,
+      startScore: this.startScore,
+      data: dataSlice
+    };
+  }
+
+  static fromJSON(json) {
+    const rec = new GameRecorder();
+    rec.seed = json.seed;
+    rec.maxpos = json.maxpos;
+    rec.startRound = json.startRound;
+    rec.startScore = json.startScore;
+    rec.random = new RandomGenerator(rec.seed);
+    const arr = json.data;
+    for (let i = 0; i < arr.length; i++) {
+      rec.data[i] = arr[i];
+    }
+    return rec;
+  }
 }

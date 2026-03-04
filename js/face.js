@@ -9,9 +9,9 @@ export class Face {
   }
 
   setColor(r, g, b) {
-    this.red = r / 255;
-    this.green = g / 255;
-    this.blue = b / 255;
+    this.red = Math.fround(r / 255);
+    this.green = Math.fround(g / 255);
+    this.blue = Math.fround(b / 255);
   }
 
   calcMaxZ() {

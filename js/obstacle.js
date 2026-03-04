@@ -29,13 +29,21 @@ export class Obstacle {
   }
 
   prepareNewObstacle() {
-    // Front face gets brighter color
-    // Match Java's Color.brighter(): divide by 0.7, min component 3
+    // Front face gets brighter color — match Java's Color.brighter() exactly
     const c = this.color;
-    const factor = 1.0 / 0.7;
-    const br = Math.min(255, Math.max(3, Math.round((c.r === 0 ? 3 : c.r) * factor)));
-    const bg = Math.min(255, Math.max(3, Math.round((c.g === 0 ? 3 : c.g) * factor)));
-    const bb = Math.min(255, Math.max(3, Math.round((c.b === 0 ? 3 : c.b) * factor)));
+    let r = c.r, g = c.g, b = c.b;
+    const i = 3; // (int)(1.0 / (1 - 0.7))
+    if (r === 0 && g === 0 && b === 0) {
+      r = i; g = i; b = i;
+    } else {
+      if (r > 0 && r < i) r = i;
+      if (g > 0 && g < i) g = i;
+      if (b > 0 && b < i) b = i;
+    }
+    const FACTOR = 0.7;
+    const br = Math.min((r / FACTOR) | 0, 255);
+    const bg = Math.min((g / FACTOR) | 0, 255);
+    const bb = Math.min((b / FACTOR) | 0, 255);
     this.faces[0].setColor(br, bg, bb);
     this.faces[0].calcMaxZ();
     this.faces[1].setColor(c.r, c.g, c.b);

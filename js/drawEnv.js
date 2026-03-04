@@ -15,7 +15,7 @@ export class DrawEnv {
     const dy1 = pts[1].y - pts[0].y;
     const dx2 = pts[2].x - pts[0].x;
     const dy2 = pts[2].y - pts[0].y;
-    let brightness = Math.abs(dx1 * dy2 - dy1 * dx2) / face.maxZ;
+    let brightness = Math.fround(Math.abs(dx1 * dy2 - dy1 * dx2) / face.maxZ);
     if (brightness > 1) brightness = 1;
 
     const r = Math.round(face.red * brightness * 255);
@@ -32,8 +32,8 @@ export class DrawEnv {
       const scale = 120 / (1 + 0.6 * p.z);
       const rotX = this.nowCos * p.x + this.nowSin * (p.y - 2.0);
       const rotY = -this.nowSin * p.x + this.nowCos * (p.y - 2.0) + 2.0;
-      const sx = (rotX * scaleX * scale) + this.width / 2;
-      const sy = (rotY * scaleY * scale) + this.height / 2;
+      const sx = ((rotX * scaleX * scale) | 0) + this.width / 2;
+      const sy = ((rotY * scaleY * scale) | 0) + this.height / 2;
       if (i === 0) ctx.moveTo(sx, sy);
       else ctx.lineTo(sx, sy);
     }
@@ -52,8 +52,8 @@ export class DrawEnv {
       const scale = 120 / (1 + 0.6 * p.z);
       const rotX = this.nowCos * p.x + this.nowSin * (p.y - 2.0);
       const rotY = -this.nowSin * p.x + this.nowCos * (p.y - 2.0) + 2.0;
-      const sx = (rotX * scaleX * scale) + this.width / 2;
-      const sy = (rotY * scaleY * scale) + this.height / 2;
+      const sx = ((rotX * scaleX * scale) | 0) + this.width / 2;
+      const sy = ((rotY * scaleY * scale) | 0) + this.height / 2;
       if (i === 0) ctx.moveTo(sx, sy);
       else ctx.lineTo(sx, sy);
     }

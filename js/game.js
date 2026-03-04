@@ -4,19 +4,20 @@ import { GameRecorder } from './gameRecorder.js';
 import { ObstacleCollection } from './obstacle.js';
 import { NormalRound } from './normalRound.js';
 import { RoadRound } from './roadRound.js';
-import { StringObject } from './stringObject.js';
+import { StringObject, ALIGN_LEFT } from './stringObject.js';
 
 const PLAY_MODE = 0;
 const TITLE_MODE = 1;
 const DEMO_MODE = 2;
 
 export class MainGame {
-  constructor(canvas, scoreLabel, continueLabel, hiscoreLabel) {
+  constructor(canvas, scoreLabel, continueLabel, hiscoreLabel, lang) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
     this.scoreLabel = scoreLabel;
     this.continueLabel = continueLabel;
     this.hiscoreLabel = hiscoreLabel;
+    this.lang = lang || 0;
 
     this.width = 320;
     this.height = 200;
@@ -45,11 +46,20 @@ export class MainGame {
     this.rFlag = false;
     this.lFlag = false;
     this.spcFlag = false;
+    this.isFocus = true;
+    this.isFocus2 = true;
+    this.isInPage = false;
+    this.mouseX = 0;
+    this.mouseY = 0;
 
     this.myImg = null;
     this.myImg2 = null;
 
     this.titleCounter = 0;
+
+    // Ranking data
+    this.hiScoreEntries = null;
+    this.hiScoreInfoObj = null;
 
     // Bomb sound via Web Audio API
     this.audioCtx = null;
@@ -80,20 +90,41 @@ export class MainGame {
       this.rounds[i].setPrevRound(this.rounds[i - 1]);
     }
 
+    // Dual-language string tables
+    const toStartMsg = [
+      'Click this game screen or push [space] key!!',
+      '\u30AF\u30EA\u30C3\u30AF\u3059\u308B\u304B\u3001[space]key\u3092\u62BC\u3057\u3066\u4E0B\u3055\u3044'
+    ];
+    const contMsgStr = [
+      'Push [C] key to start from this stage!!',
+      '\u9014\u4E2D\u304B\u3089\u59CB\u3081\u308B\u5834\u5408\u306F [C]key \u3092\u62BC\u3057\u3066\u4E0B\u3055\u3044!!'
+    ];
+    const clickMsgStr = [
+      'Click!!',
+      '\u30AF\u30EA\u30C3\u30AF\u3057\u3066\u4E0B\u3055\u3044'
+    ];
+
     // Title screen text objects
     const titleFont = `bold ${(this.width * 32 / 320 + 4)}px "Times New Roman", serif`;
     const normalFont = '12px "Courier New", Courier, monospace';
+    this.normalFont = normalFont;
 
     this.title = new StringObject(titleFont, '#ffffff', 'Jet slalom',
       this.centerX, this.centerY - 20 * this.width / 320);
     this.author = new StringObject(normalFont, '#000000', 'Programed by MR-C',
       this.centerX, this.centerY + 68);
     this.startMsg = new StringObject(normalFont, '#000000',
-      'Click this game screen or push [space] key!!',
+      toStartMsg[this.lang],
       this.centerX, this.centerY + 24);
     this.contMsg = new StringObject(normalFont, '#000000',
-      'Push [C] key to start from this stage!!',
+      contMsgStr[this.lang],
       this.centerX, this.centerY + 44);
+    this.clickMsg = new StringObject(normalFont, '#ff0000',
+      clickMsgStr[this.lang],
+      this.centerX, this.centerY);
+    this.hpage = new StringObject(normalFont, '#000000',
+      'http://www.kdn.gr.jp/~shii/',
+      this.centerX, this.centerY + 86);
 
     // Timer handle
     this._intervalId = null;
@@ -146,12 +177,78 @@ export class MainGame {
     }
   }
 
+  initHiScoreInfoObj() {
+    this.hiScoreInfoObj = new Array(6);
+    this.hiScoreInfoObj[0] = new StringObject(this.normalFont, '#ffffff', 'Ranking',
+      this.width / 2, 24);
+    for (let i = 1; i < 6; i++) {
+      this.hiScoreInfoObj[i] = new StringObject(this.normalFont, '#ffffff', '',
+        this.width / 8, 24 + 24 * i);
+      this.hiScoreInfoObj[i].setAlign(ALIGN_LEFT);
+    }
+  }
+
+  updateHiScoreInfoObj(idx) {
+    for (let i = 0; i < 5; i++) {
+      let num = ' ' + (idx + i + 1);
+      num = num.substring(num.length - 2);
+      this.hiScoreInfoObj[i + 1].setText(num + '.  ' + this.hiScoreEntries[idx + i]);
+    }
+  }
+
+  saveRanking(score) {
+    try {
+      let rankings = JSON.parse(localStorage.getItem('jslalom_rankings') || '[]');
+      const name = 'Player';
+      rankings.push({ score, name });
+      rankings.sort((a, b) => b.score - a.score);
+      rankings = rankings.slice(0, 20);
+      localStorage.setItem('jslalom_rankings', JSON.stringify(rankings));
+      this.loadRankingEntries(rankings);
+    } catch (e) {
+      // localStorage may be unavailable
+    }
+  }
+
+  loadRankingEntries(rankings) {
+    this.hiScoreEntries = new Array(20);
+    for (let i = 0; i < 20; i++) {
+      if (i < rankings.length) {
+        let scoreStr = '000000' + rankings[i].score;
+        scoreStr = scoreStr.substring(scoreStr.length - 6);
+        this.hiScoreEntries[i] = scoreStr + ' : ' + rankings[i].name;
+      } else {
+        this.hiScoreEntries[i] = '';
+      }
+    }
+  }
+
   start() {
     // Load hiscore from localStorage
     const saved = localStorage.getItem('jslalom_hiscore');
     if (saved) {
       this.hiscore = parseInt(saved) || 0;
       this.hiscoreLabel.textContent = 'Your Hi-score:' + this.hiscore;
+    }
+
+    // Load hiscore replay from localStorage
+    try {
+      const recJson = localStorage.getItem('jslalom_hiscoreRec');
+      if (recJson) {
+        this.hiscoreRec = GameRecorder.fromJSON(JSON.parse(recJson));
+      }
+    } catch (e) {
+      // Ignore parse errors
+    }
+
+    // Load rankings from localStorage
+    try {
+      const rankings = JSON.parse(localStorage.getItem('jslalom_rankings') || '[]');
+      if (rankings.length > 0) {
+        this.loadRankingEntries(rankings);
+      }
+    } catch (e) {
+      // Ignore parse errors
     }
 
     // Init state
@@ -430,16 +527,44 @@ export class MainGame {
   showTitle() {
     const ctx = this.ctx;
     this.vx = 0;
+    const interval = 100;
 
-    this.title.draw(ctx);
-    this.startMsg.draw(ctx);
-    this.author.draw(ctx);
+    if (this.titleCounter >= interval && this.hiScoreEntries !== null) {
+      let idx = ((this.titleCounter - interval) / interval | 0) * 5;
+      if (idx > 15) {
+        idx = 15;
+        this.titleCounter = 0;
+      }
+      if (this.hiScoreInfoObj === null) {
+        this.initHiScoreInfoObj();
+      }
+      this.updateHiScoreInfoObj(idx);
+      for (let i = 0; i < 6; i++) {
+        this.hiScoreInfoObj[i].draw(ctx);
+      }
+    } else {
+      this.title.draw(ctx);
+      this.startMsg.draw(ctx);
+      this.author.draw(ctx);
 
-    if (this.rounds[0].isNextRound(this.prevScore)) {
-      this.contMsg.draw(ctx);
+      if (this.hpage.hitTest(this.mouseX, this.mouseY)) {
+        this.hpage.setColor('#ffffff');
+        this.isInPage = true;
+      } else {
+        this.isInPage = false;
+        this.hpage.setColor('#000000');
+      }
+      this.hpage.draw(ctx);
+
+      if (this.rounds[0].isNextRound(this.prevScore)) {
+        this.contMsg.draw(ctx);
+      }
     }
 
     this.titleCounter++;
+    if (!this.isFocus) {
+      this.clickMsg.draw(ctx);
+    }
   }
 
   endGame() {
@@ -455,6 +580,15 @@ export class MainGame {
       this.hiscoreRec = this.recorder;
       // Save to localStorage
       localStorage.setItem('jslalom_hiscore', this.hiscore.toString());
+      try {
+        localStorage.setItem('jslalom_hiscoreRec', JSON.stringify(this.hiscoreRec.toJSON()));
+      } catch (e) {
+        // Ignore storage errors
+      }
+    }
+
+    if (this.gameMode === PLAY_MODE) {
+      this.saveRanking(this.score);
     }
 
     this.hiscoreLabel.textContent = 'Your Hi-score:' + this.hiscore;
@@ -471,15 +605,17 @@ export class MainGame {
     this.moveObstacle();
     this.prt();
 
-    // Speed mode: run extra ticks when A is held (skip timer wait)
-    // In setInterval mode, we just run two ticks when spcFlag is set
-    if (this.spcFlag && this.gameMode !== TITLE_MODE) {
-      if (this.rounds[this.round].isNextRound(this.score)) {
-        this.round++;
+    // Speed mode: when A is held, skip timer wait (Java runs unlimited FPS).
+    // Approximate by running ~9 extra ticks per interval.
+    if (this.spcFlag) {
+      for (let i = 0; i < 9; i++) {
+        if (this.rounds[this.round].isNextRound(this.score)) {
+          this.round++;
+        }
+        this.keyOperate();
+        this.moveObstacle();
+        this.prt();
       }
-      this.keyOperate();
-      this.moveObstacle();
-      this.prt();
     }
   }
 }
