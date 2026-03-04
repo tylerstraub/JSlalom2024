@@ -115,8 +115,12 @@ async function init() {
   // ── Mouse ──────────────────────────────────────────────────────────────────
 
   canvas.addEventListener('mousedown', (e) => {
-    if (e.button === 2) { game.rFlag = true;  game.lFlag = false; }
-    else if (e.button === 0) { game.rFlag = false; game.lFlag = true; }
+    // Only apply steering when already playing — prevents the start-click
+    // from also registering as a bank input on the first tick.
+    if (game.gameMode === 0) {
+      if (e.button === 2) { game.rFlag = true;  game.lFlag = false; }
+      else if (e.button === 0) { game.rFlag = false; game.lFlag = true; }
+    }
     if (game.gameMode !== 0) {
       if (!game.isFocus2) { game.isFocus2 = true; }
       else if (game.isInPage && game.gameMode === 1) { window.open('http://www.kdn.gr.jp/~shii/', '_blank'); }
