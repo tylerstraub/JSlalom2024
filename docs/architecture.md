@@ -131,6 +131,36 @@ Uses `Math.imul()` for exact 32-bit multiplication matching Java.
 - **TITLE_MODE (1)**: Shows title, author, start instructions. Background obstacles still render.
 - **PLAY_MODE (0)**: Active gameplay. Score increments. Input recorded.
 - **DEMO_MODE (2)**: Replays recorded input from hi-score run.
+- **GAME_OVER_MODE (3)**: Post-crash interstitial. Game loop keeps ticking but `keyOperate / moveObstacle / prt` are skipped, so the canvas is frozen on the last rendered frame. The game-over overlay (Play Again / Send Record) is shown by `main.js` via the `onGameOver(isNewRecord)` callback. Transitions to TITLE_MODE when Play Again is clicked.
+
+## Leaderboard
+
+The original applet used a server-side CGI (`regist.cgi`) and a flat file (`rank.dat`) for a shared online leaderboard. That infrastructure is long gone. This restoration uses `localStorage` instead.
+
+### Storage keys
+| Key | Contents |
+|-----|----------|
+| `jslalom_hiscore` | Personal best score (integer string) |
+| `jslalom_hiscoreRec` | JSON-serialised `GameRecorder` for the hi-score run (used by demo mode) |
+| `jslalom_rankings` | JSON array of `{ score, name }` objects, up to 20 entries, sorted descending |
+
+### Game-over overlay
+After a play-mode crash, `GAME_OVER_MODE` activates and `main.js` shows an overlay with two AWT-style buttons:
+- **Play Again** — returns to title without saving a ranking entry
+- **Send Record** — saves `{ score, name }` to `jslalom_rankings` and disables itself to prevent duplicates. Always enabled (any score is worth recording locally).
+
+The name input defaults to empty; ranking name defaults to `"No name"` if Send Record is clicked without typing anything.
+
+### Title screen ranking display
+The top 10 submitted scores are shown in two pages of 5 during the title screen animation (pages cycle every 100 frames). Up to 20 scores are retained in storage; only the top 10 are displayed.
+
+## Deliberate divergences from original Java source
+
+The decompiled `Game3D.java` contains a `TextField` ("No name") and `Button` ("Ok") that are **instantiated but never added to any AWT panel** and never wired with listeners — dead code in the version we have. The game always submitted scores as "No name" to the server.
+
+This restoration intentionally improves on that behaviour:
+- A **game-over interstitial screen** (not present in the decompiled source, but visible in archived gameplay footage of a different build) lets the player name their score before it is recorded.
+- The hi-score footer label reads **"Hi-score:"** rather than the original **"Your Hi-score:"** to reflect that multiple players may share the same browser profile.
 
 ## Audio
 `BOMB.wav` is preloaded into a Web Audio API buffer at `initAudio()` time (called when the player first starts a game). `playBombSound()` plays the buffer on every collision hit (damaged === 1).

@@ -9,6 +9,7 @@ import { StringObject, ALIGN_LEFT } from './stringObject.js';
 const PLAY_MODE = 0;
 const TITLE_MODE = 1;
 const DEMO_MODE = 2;
+const GAME_OVER_MODE = 3;
 
 export class MainGame {
   constructor(canvas, scoreLabel, continueLabel, hiscoreLabel, lang) {
@@ -62,6 +63,9 @@ export class MainGame {
     // Ranking data
     this.hiScoreEntries = null;
     this.hiScoreInfoObj = null;
+
+    // Called when a play-mode game ends: onGameOver(isNewRecord)
+    this.onGameOver = null;
 
     // Bomb sound via Web Audio API
     this.audioCtx = null;
@@ -194,11 +198,10 @@ export class MainGame {
     }
   }
 
-  saveRanking(score) {
+  saveRanking(score, name) {
     try {
       let rankings = JSON.parse(localStorage.getItem('jslalom_rankings') || '[]');
-      const name = 'Player';
-      rankings.push({ score, name });
+      rankings.push({ score, name: name || 'No name' });
       rankings.sort((a, b) => b.score - a.score);
       rankings = rankings.slice(0, 20);
       localStorage.setItem('jslalom_rankings', JSON.stringify(rankings));
@@ -206,6 +209,10 @@ export class MainGame {
     } catch (e) {
       // localStorage may be unavailable
     }
+  }
+
+  returnToTitle() {
+    this.gameMode = TITLE_MODE;
   }
 
   loadRankingEntries(rankings) {
@@ -226,7 +233,7 @@ export class MainGame {
     const saved = localStorage.getItem('jslalom_hiscore');
     if (saved) {
       this.hiscore = parseInt(saved) || 0;
-      this.hiscoreLabel.textContent = 'Your Hi-score:' + this.hiscore;
+      this.hiscoreLabel.textContent = 'Hi-score:' + this.hiscore;
     }
 
     // Load hiscore replay from localStorage
@@ -273,7 +280,7 @@ export class MainGame {
   }
 
   startGame(mode, isContinue) {
-    if (this.gameMode === PLAY_MODE) return;
+    if (this.gameMode === PLAY_MODE || this.gameMode === GAME_OVER_MODE) return;
 
     this.vx = 0;
     if (mode !== PLAY_MODE && mode !== DEMO_MODE) {
@@ -342,16 +349,16 @@ export class MainGame {
     }
 
     if (isDown) {
-      // Space (32) or C (67) to start
-      if (this.gameMode !== PLAY_MODE && (keyCode === 32 || keyCode === 67)) {
+      // Space (32) or C (67) to start — not during game-over overlay
+      if (this.gameMode !== PLAY_MODE && this.gameMode !== GAME_OVER_MODE && (keyCode === 32 || keyCode === 67)) {
         this.startGame(PLAY_MODE, keyCode === 67);
       }
       // D key - demo mode
       if (this.gameMode === TITLE_MODE && keyCode === 68 && this.hiscoreRec !== null) {
         this.startGame(DEMO_MODE, false);
       }
-      // T key - test mode
-      if (this.gameMode !== PLAY_MODE && keyCode === 84) {
+      // T key - test mode — not during game-over overlay
+      if (this.gameMode !== PLAY_MODE && this.gameMode !== GAME_OVER_MODE && keyCode === 84) {
         this.prevScore = 110000;
         this.contNum = 100;
         this.startGame(PLAY_MODE, true);
@@ -535,8 +542,8 @@ export class MainGame {
 
     if (this.titleCounter >= interval && this.hiScoreEntries !== null) {
       let idx = ((this.titleCounter - interval) / interval | 0) * 5;
-      if (idx > 15) {
-        idx = 15;
+      if (idx > 5) {
+        idx = 5;
         this.titleCounter = 0;
       }
       if (this.hiScoreInfoObj === null) {
@@ -574,15 +581,17 @@ export class MainGame {
   endGame() {
     this.scoreLabel.setNum(this.score);
 
-    if (this.gameMode === PLAY_MODE) {
+    const isPlay = this.gameMode === PLAY_MODE;
+    if (isPlay) {
       this.prevScore = this.score;
     }
 
+    let isNewRecord = false;
     const netScore = this.score - this.contNum * 1000;
-    if (netScore > this.hiscore && this.gameMode === PLAY_MODE) {
+    if (netScore > this.hiscore && isPlay) {
+      isNewRecord = true;
       this.hiscore = netScore;
       this.hiscoreRec = this.recorder;
-      // Save to localStorage
       localStorage.setItem('jslalom_hiscore', this.hiscore.toString());
       try {
         localStorage.setItem('jslalom_hiscoreRec', JSON.stringify(this.hiscoreRec.toJSON()));
@@ -591,12 +600,16 @@ export class MainGame {
       }
     }
 
-    if (this.gameMode === PLAY_MODE) {
-      this.saveRanking(this.score);
-    }
+    this.hiscoreLabel.textContent = 'Hi-score:' + this.hiscore;
 
-    this.hiscoreLabel.textContent = 'Your Hi-score:' + this.hiscore;
-    this.gameMode = TITLE_MODE;
+    if (isPlay) {
+      // Show game-over overlay; ranking saved when player dismisses it
+      this.gameMode = GAME_OVER_MODE;
+      if (this.onGameOver) this.onGameOver(isNewRecord);
+    } else {
+      // Demo mode ended — return to title silently
+      this.gameMode = TITLE_MODE;
+    }
   }
 
   tick() {
@@ -606,14 +619,17 @@ export class MainGame {
     // so the next tick fires ~55ms after this one started, not after it ended.
     const tickStart = this.spcFlag ? 0 : performance.now();
 
-    // Round advancement
-    if (this.rounds[this.round].isNextRound(this.score)) {
-      this.round++;
-    }
+    // GAME_OVER_MODE: canvas frozen, overlay visible — just keep timer ticking
+    if (this.gameMode !== GAME_OVER_MODE) {
+      // Round advancement
+      if (this.rounds[this.round].isNextRound(this.score)) {
+        this.round++;
+      }
 
-    this.keyOperate();
-    this.moveObstacle();
-    this.prt();
+      this.keyOperate();
+      this.moveObstacle();
+      this.prt();
+    }
 
     if (this.spcFlag) {
       // A held: run uncapped (0ms delay), matching Java's skip-the-wait behaviour

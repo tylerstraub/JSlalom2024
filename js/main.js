@@ -6,6 +6,10 @@ async function init() {
   const scoreEl = document.getElementById('score-display');
   const continueEl = document.getElementById('continue-display');
   const hiscoreEl = document.getElementById('hiscore-display');
+  const overlay = document.getElementById('game-over-overlay');
+  const playAgainBtn = document.getElementById('play-again-btn');
+  const sendRecordBtn = document.getElementById('send-record-btn');
+  const nameInput = document.getElementById('player-name');
 
   // Parse ?lang=JP from URL
   const params = new URLSearchParams(window.location.search);
@@ -18,15 +22,37 @@ async function init() {
   // Load sprite images
   await game.loadImages();
 
-  // Keyboard input
+  // Game-over overlay logic
+  game.onGameOver = (isNewRecord) => {
+    nameInput.value = '';
+    sendRecordBtn.disabled = false;
+    overlay.style.display = 'block';
+    nameInput.focus();
+  };
+
+  sendRecordBtn.addEventListener('click', () => {
+    const name = nameInput.value.trim() || 'No name';
+    game.saveRanking(game.prevScore, name);
+    sendRecordBtn.disabled = true;
+  });
+
+  playAgainBtn.addEventListener('click', () => {
+    overlay.style.display = 'none';
+    game.returnToTitle();
+    canvas.focus();
+  });
+
+  // Keyboard input — don't steal keystrokes when typing in the name field
   document.addEventListener('keydown', (e) => {
-    // Prevent arrow key scrolling
+    if (document.activeElement === nameInput) return;
+    // Prevent arrow key / space scrolling
     if ([37, 39, 32].includes(e.keyCode)) {
       e.preventDefault();
     }
     game.keyEvent(e.keyCode, true);
   });
   document.addEventListener('keyup', (e) => {
+    if (document.activeElement === nameInput) return;
     game.keyEvent(e.keyCode, false);
   });
 
@@ -72,7 +98,7 @@ async function init() {
       } else if (game.isInPage && game.gameMode === 1) { // TITLE_MODE
         window.open('http://www.kdn.gr.jp/~shii/', '_blank');
       } else {
-        game.startGame(0, false); // PLAY_MODE
+        game.startGame(0, false); // PLAY_MODE (blocked by startGame if GAME_OVER_MODE)
       }
     }
   });
