@@ -15,11 +15,10 @@ const GAME_OVER_MODE = 3;
 const TICK_MS = 55;
 
 export class MainGame {
-  constructor(canvas, scoreLabel, continueLabel, hiscoreLabel, lang) {
+  constructor(canvas, scoreLabel, hiscoreLabel, lang) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
     this.scoreLabel = scoreLabel;
-    this.continueLabel = continueLabel;
     this.hiscoreLabel = hiscoreLabel;
     this.lang = lang || 0;
 
@@ -43,7 +42,6 @@ export class MainGame {
     this.prevScore = 0;
     this.hiscore = 0;
     this.shipCounter = 0;
-    this.contNum = 0;
     this.damaged = 0;
     this.round = 0;
     this.gameMode = TITLE_MODE;
@@ -115,9 +113,11 @@ export class MainGame {
     const cx = this.centerX;
     const cy = this.centerY;
 
-    // Scale fonts proportionally to canvas size
-    const titleFontSize = Math.round(w * 36 / 320);
-    const uiFontSize = Math.max(10, Math.round(w * 12 / 320));
+    // Square-root scaling: grows with canvas size but not as aggressively as linear.
+    // At 320px → original sizes (36/12px). At 1280px → 72/24px. At 1920px → ~88/29px.
+    const scale = Math.sqrt(w / 320);
+    const titleFontSize = Math.round(36 * scale);
+    const uiFontSize = Math.max(10, Math.round(12 * scale));
     const titleFont = `bold ${titleFontSize}px "Times New Roman", serif`;
     const normalFont = `${uiFontSize}px "Courier New", Courier, monospace`;
     this.normalFont = normalFont;
@@ -129,15 +129,9 @@ export class MainGame {
       'Click this game screen or push [space] key!!',
       '\u30AF\u30EA\u30C3\u30AF\u3059\u308B\u304B\u3001[space]key\u3092\u62BC\u3057\u3066\u4E0B\u3055\u3044'
     ];
-    const contMsgStr = [
-      'Push [C] key to start from this stage!!',
-      '\u9014\u4E2D\u304B\u3089\u59CB\u3081\u308B\u5834\u5408\u306F [C]key \u3092\u62BC\u3057\u3066\u4E0B\u3055\u3044!!'
-    ];
-
     this.title    = new StringObject(titleFont,  '#ffffff', 'Jet slalom',          cx, cy - 20 * h / 200);
     this.author   = new StringObject(normalFont, '#000000', 'Programed by MR-C',   cx, cy + 68 * h / 200);
     this.startMsg = new StringObject(normalFont, '#000000', toStartMsg[this.lang],  cx, cy + 24 * h / 200);
-    this.contMsg  = new StringObject(normalFont, '#000000', contMsgStr[this.lang],  cx, cy + 44 * h / 200);
     this.hpage    = new StringObject(normalFont, '#000000', 'http://www.kdn.gr.jp/~shii/', cx, cy + 86 * h / 200);
 
     this.hiScoreInfoObj = null; // will be re-created lazily on next use
@@ -190,7 +184,7 @@ export class MainGame {
   }
 
   initHiScoreInfoObj() {
-    const uiFontSize = Math.max(10, Math.round(this.width * 12 / 320));
+    const uiFontSize = Math.max(10, Math.round(12 * Math.sqrt(this.width / 320)));
     const normalFont = `${uiFontSize}px "Courier New", Courier, monospace`;
     this.hiScoreInfoObj = new Array(6);
     this.hiScoreInfoObj[0] = new StringObject(normalFont, '#ffffff', 'Ranking',
@@ -288,7 +282,7 @@ export class MainGame {
     }
   }
 
-  startGame(mode, isContinue) {
+  startGame(mode) {
     if (this.gameMode === PLAY_MODE || this.gameMode === GAME_OVER_MODE) return;
     this.vx = 0;
     if (mode !== PLAY_MODE && mode !== DEMO_MODE) { this.gameMode = TITLE_MODE; return; }
@@ -309,16 +303,6 @@ export class MainGame {
     this.score = 0;
     this.vx = 0;
 
-    if (!isContinue) {
-      this.contNum = 0;
-    } else {
-      while (this.prevScore >= this.rounds[this.round].getNextRoundScore()) this.round++;
-      if (this.round > 0) {
-        this.score = this.rounds[this.round - 1].getNextRoundScore();
-        this.contNum++;
-      }
-    }
-
     if (mode === DEMO_MODE) {
       this.round = this.hiscoreRec.startRound;
       this.score = this.hiscoreRec.startScore;
@@ -327,7 +311,6 @@ export class MainGame {
       this.recorder.startScore = this.score;
     }
 
-    this.continueLabel.textContent = '' + (this.contNum * 1000);
   }
 
   keyEvent(keyCode, isDown) {
@@ -335,16 +318,11 @@ export class MainGame {
     if (keyCode === 37 || keyCode === 74) this.lFlag = isDown;
 
     if (isDown) {
-      if (this.gameMode !== PLAY_MODE && this.gameMode !== GAME_OVER_MODE && (keyCode === 32 || keyCode === 67)) {
-        this.startGame(PLAY_MODE, keyCode === 67);
+      if (this.gameMode !== PLAY_MODE && this.gameMode !== GAME_OVER_MODE && keyCode === 32) {
+        this.startGame(PLAY_MODE);
       }
       if (this.gameMode === TITLE_MODE && keyCode === 68 && this.hiscoreRec !== null) {
-        this.startGame(DEMO_MODE, false);
-      }
-      if (this.gameMode !== PLAY_MODE && this.gameMode !== GAME_OVER_MODE && keyCode === 84) {
-        this.prevScore = 110000;
-        this.contNum = 100;
-        this.startGame(PLAY_MODE, true);
+        this.startGame(DEMO_MODE);
       }
     }
   }
@@ -572,13 +550,13 @@ export class MainGame {
     const shadowX = this.centerX - interpVx * 20 * w / 320;
     // Bob: ship higher → shadow slightly smaller and dimmer
     const heightFactor = 1 - bobNorm * 0.12;
-    const blurPx = Math.round(4 * w / 320);
+    const blurPx = Math.round(5 * w / 320);
     ctx.save();
     ctx.filter = `blur(${blurPx}px)`;
-    ctx.globalAlpha = 0.45 * Math.max(0.7, heightFactor);
+    ctx.globalAlpha = 0.32 * Math.max(0.7, heightFactor);
     ctx.fillStyle = 'rgb(0, 20, 60)';
     ctx.beginPath();
-    ctx.ellipse(shadowX, shadowY, this.mywidth2 * 1.1 * heightFactor, 4 * h / 200 * heightFactor, 0, 0, Math.PI * 2);
+    ctx.ellipse(shadowX, shadowY, this.mywidth2 * 1.0 * heightFactor, 3.5 * h / 200 * heightFactor, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
 
@@ -635,7 +613,6 @@ export class MainGame {
       }
       this.hpage.draw(ctx);
 
-      if (this.rounds[0].isNextRound(this.prevScore)) this.contMsg.draw(ctx);
     }
 
   }
@@ -647,7 +624,7 @@ export class MainGame {
     if (isPlay) this.prevScore = this.score;
 
     let isNewRecord = false;
-    const netScore = this.score - this.contNum * 1000;
+    const netScore = this.score;
     if (netScore > this.hiscore && isPlay) {
       isNewRecord = true;
       this.hiscore = netScore;

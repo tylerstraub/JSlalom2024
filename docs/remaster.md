@@ -4,8 +4,8 @@
 
 `remaster/` is a modernised presentation layer built on top of the original restored engine. The goal is a fullscreen, 60 fps, anti-aliased experience that feels like a contemporary indie game while keeping gameplay behaviour bit-for-bit identical to the 1997 Java applet.
 
-**What changes**: rendering pipeline, frame timing, canvas resolution, visual polish.
-**What doesn't change**: physics, PRNG, collision detection, round system, score math, replay recording — all untouched.
+**What changes**: rendering pipeline, frame timing, canvas resolution, visual polish, continue system removed.
+**What doesn't change**: physics, PRNG, collision detection, round system, replay recording — all untouched.
 
 ---
 
@@ -126,8 +126,8 @@ const bobY = Math.sin(interpCounter * Math.PI / 6) * bobAmplitude;
 A blurred ellipse drawn on the water surface directly below the ship sprite (painted before the sprite so it sits underneath):
 - Shifts laterally with `interpVx`: banking right moves the shadow right, selling the lean
 - Pulses with the sine bob: when the ship crests up (`bobNorm ≈ 1`), the ellipse shrinks ~12% and dims; at the bottom of the bob it swells back
-- Rendered with `ctx.filter = blur(Xpx)` (X scaled to canvas width) for a soft cast-shadow edge
-- Color: `rgb(0, 20, 60)` at ~45% opacity
+- Rendered with `ctx.filter = blur(Xpx)` where X = `5 * canvasWidth / 320`, for a feathered cast-shadow edge
+- Color: `rgb(0, 20, 60)` at ~32% opacity
 
 ### Sprite scaling
 `ctx.imageSmoothingEnabled = false` — nearest-neighbor scaling for the jet ski sprites, same as the original. Bilinear smoothing produced noticeable blur on the small pixel-art source images at high resolution.
@@ -164,7 +164,7 @@ The game-over overlay takes priority — `triggerPause()` is a no-op while `over
 
 - Canvas is sized by JS to fill the viewport at **16:10 aspect ratio** (letterboxed with black bars if needed).
 - All game positions use `x * (width/320)` and `y * (height/200)` scaling — the same proportional formulas as the original, just with actual canvas dimensions substituted for 320/200.
-- Fonts scale: `Math.round(basePx * width / 320)`.
+- Fonts scale: `Math.round(basePx * Math.sqrt(width / 320))` — square-root of the linear scale factor, so fonts grow with the canvas but not as aggressively as a direct proportion. At 1280 px wide (4× original) the title is 72 px rather than 144 px.
 - `onResize(w, h)` is called by `main.js` on `window.resize` — updates `game.width/height/centerX/centerY` and recreates all StringObjects.
 
 ---
@@ -193,6 +193,21 @@ The remaster lives in `remaster/` but shares assets from the repository root:
 | `js/roundManager.js` | Modified | Obstacle spawn z pushed from 25.5 → 40.5; velocity-compensated spawn x so obstacles always arrive at their random position regardless of banking angle |
 | `js/stringObject.js` | Copied | Unchanged — StringObject API is the same |
 | All other `js/` | Copied | Unchanged — game logic, PRNG, rounds, recorder, obstacle pool |
+
+---
+
+## Remaster-specific Gameplay Changes
+
+### Continue system removed
+The original allowed pressing **C** at the title screen to resume from the last reached round, applying a `contNum × 1000` penalty against the hi-score. The remaster removes this entirely:
+
+- No C key continue
+- Every run starts at round 1, score 0
+- Hi-score is the raw score with no deduction
+- The "Continue penalty" HUD field is gone
+- The T-key debug cheat (jump to round 6) is also removed
+
+**Rationale**: without a universal penalty formula, continue scores are not comparable to clean runs. Starting from scratch every time makes the leaderboard meaningful — rank reflects how far you got in a single run.
 
 ---
 

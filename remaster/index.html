@@ -45,9 +45,15 @@
     pointer-events: none;
   }
   #hud span { white-space: nowrap; }
-  #score-display, #continue-display, #hiscore-display {
+  #score-display {
     font-weight: bold;
     color: #ffffff;
+  }
+  /* hiscore-display contains the full "Hi-score:N" string set by the game;
+     label colour keeps it visually consistent with the "Score:" label */
+  #hiscore-display {
+    font-weight: bold;
+    color: #d0ffd0;
   }
 
   /* Game-over overlay */
@@ -63,7 +69,7 @@
     background: rgba(20, 20, 20, 0.88);
     backdrop-filter: blur(8px);
     border: 1px solid #444;
-    border-radius: 12px;
+    border-radius: 3px;
     padding: 24px 32px;
     display: flex;
     flex-direction: column;
@@ -86,7 +92,7 @@
     background: #1a6b3a;
     color: #fff;
     border: none;
-    border-radius: 6px;
+    border-radius: 2px;
     cursor: pointer;
     text-align: center;
     transition: background 0.15s;
@@ -106,7 +112,7 @@
     font-size: clamp(12px, 1.2vw, 15px);
     background: #111;
     border: 1px solid #555;
-    border-radius: 6px;
+    border-radius: 2px;
     padding: 7px 10px;
     color: #fff;
     outline: none;
@@ -132,7 +138,7 @@
     align-items: center;
     gap: 10px;
     color: rgba(255, 255, 255, 0.75);
-    font-family: sans-serif;
+    font-family: 'Courier New', Courier, monospace;
     font-size: clamp(13px, 1.6vw, 18px);
     letter-spacing: 0.05em;
     animation: focusPulse 2s ease-in-out infinite;
@@ -162,7 +168,7 @@
     background: rgba(255,255,255,0.15);
     color: #fff;
     border: 2px solid rgba(255,255,255,0.3);
-    border-radius: 12px;
+    border-radius: 4px;
     text-align: center;
     line-height: 60px;
     touch-action: none;
@@ -172,6 +178,16 @@
   @media (pointer: coarse) {
     #touch-controls { display: flex; }
   }
+
+  /* Panel credit — mirrors game's "Programed by MR-C" style */
+  .panel-credit {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: clamp(9px, 0.9vw, 11px);
+    color: #555;
+    text-align: center;
+    margin-top: -6px;
+  }
+
 </style>
 </head>
 <body>
@@ -179,13 +195,13 @@
 
   <div id="hud">
     <span>Score: <span id="score-display">000000</span></span>
-    <span>Continue penalty: <span id="continue-display">0</span></span>
     <span id="hiscore-display">Hi-score: 0</span>
   </div>
 
   <div id="game-over-overlay">
     <div id="game-over-panel">
       <h2>Game Over</h2>
+      <div class="panel-credit">Remaster 2024 by Tyler Straub</div>
       <button id="play-again-btn" class="modern-btn">Play Again</button>
       <div id="send-record-row">
         <button id="send-record-btn" class="modern-btn">Send Record</button>

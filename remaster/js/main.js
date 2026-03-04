@@ -4,7 +4,6 @@ import { NumberLabel } from './numberLabel.js';
 async function init() {
   const canvas = document.getElementById('game-canvas');
   const scoreEl = document.getElementById('score-display');
-  const continueEl = document.getElementById('continue-display');
   const hiscoreEl = document.getElementById('hiscore-display');
   const overlay = document.getElementById('game-over-overlay');
   const playAgainBtn = document.getElementById('play-again-btn');
@@ -40,7 +39,7 @@ async function init() {
   resizeCanvas();
 
   const scoreLabel = new NumberLabel(scoreEl);
-  const game = new MainGame(canvas, scoreLabel, continueEl, hiscoreEl, lang);
+  const game = new MainGame(canvas, scoreLabel, hiscoreEl, lang);
 
   window.addEventListener('resize', () => {
     const { cw, ch } = resizeCanvas();
@@ -121,7 +120,7 @@ async function init() {
     if (game.gameMode !== 0) {
       if (!game.isFocus2) { game.isFocus2 = true; }
       else if (game.isInPage && game.gameMode === 1) { window.open('http://www.kdn.gr.jp/~shii/', '_blank'); }
-      else { game.startGame(0, false); }
+      else { game.startGame(0); }
     }
   });
   canvas.addEventListener('mouseup', () => { game.rFlag = false; game.lFlag = false; });
