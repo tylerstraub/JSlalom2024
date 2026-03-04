@@ -236,7 +236,7 @@ export class MainGame {
     const saved = localStorage.getItem('jslalom_hiscore');
     if (saved) {
       this.hiscore = parseInt(saved) || 0;
-      this.hiscoreLabel.textContent = 'Hi-score:' + this.hiscore;
+      this.hiscoreLabel.textContent = '' + this.hiscore;
     }
     try {
       const recJson = localStorage.getItem('jslalom_hiscoreRec');
@@ -635,7 +635,7 @@ export class MainGame {
       } catch (e) {}
     }
 
-    this.hiscoreLabel.textContent = 'Hi-score:' + this.hiscore;
+    this.hiscoreLabel.textContent = '' + this.hiscore;
 
     if (isPlay) {
       this.gameMode = GAME_OVER_MODE;

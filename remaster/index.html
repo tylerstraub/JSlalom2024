@@ -45,15 +45,9 @@
     pointer-events: none;
   }
   #hud span { white-space: nowrap; }
-  #score-display {
+  #score-display, #hiscore-display {
     font-weight: bold;
     color: #ffffff;
-  }
-  /* hiscore-display contains the full "Hi-score:N" string set by the game;
-     label colour keeps it visually consistent with the "Score:" label */
-  #hiscore-display {
-    font-weight: bold;
-    color: #d0ffd0;
   }
 
   /* Game-over overlay */
@@ -195,7 +189,7 @@
 
   <div id="hud">
     <span>Score: <span id="score-display">000000</span></span>
-    <span id="hiscore-display">Hi-score: 0</span>
+    <span>Hi-score: <span id="hiscore-display">0</span></span>
   </div>
 
   <div id="game-over-overlay">
