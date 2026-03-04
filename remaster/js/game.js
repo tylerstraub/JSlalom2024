@@ -468,18 +468,18 @@ export class MainGame {
     }
   }
 
-  // Fade alpha based on obstacle's current (interpolated) z distance.
-  // Obstacles spawn at z≈25.5 and are fully visible by z=17 — ~470ms of travel.
-  _obstacleFogAlpha(interpZ) {
-    const FAR  = 40.5; // spawn z — fully transparent here
-    const NEAR = 36;   // fully opaque by here (~4 units = ~220ms of travel)
-    if (interpZ >= FAR) return 0;
-    if (interpZ <= NEAR) return 1;
-    return (FAR - interpZ) / (FAR - NEAR);
+  // Rise factor based on obstacle's z distance.
+  // 0 = apex squashed to ground (at spawn), 1 = fully risen.
+  _obstacleRiseT(z) {
+    const FAR  = 40.5; // spawn z — completely flat here
+    const NEAR = 38;   // fully risen by here (~2.5 units = ~137ms of travel)
+    if (z >= FAR) return 0;
+    if (z <= NEAR) return 1;
+    return (FAR - z) / (FAR - NEAR);
   }
 
   _drawObstaclesInterpolated(alpha) {
-    const ctx = this.ctx;
+    const GROUND_Y = 2.0; // y-coordinate of the water/ground plane
     let ob = this.obstacles.head.next;
     while (ob !== this.obstacles.tail) {
       const prev = this._prevSnapshots.get(ob);
@@ -503,8 +503,9 @@ export class MainGame {
             ob.points[i].y = prev[i].y + alpha * (cur[i].y - prev[i].y);
             ob.points[i].z = prev[i].z + alpha * (cur[i].z - prev[i].z);
           }
-          const interpZ = prev[0].z + alpha * (cur[0].z - prev[0].z);
-          ctx.globalAlpha = this._obstacleFogAlpha(interpZ);
+          // Spike rise: squash apex toward ground when far, extend to full height as it nears
+          const riseT = this._obstacleRiseT(ob.points[0].z);
+          ob.points[1].y = GROUND_Y + (ob.points[1].y - GROUND_Y) * riseT;
           ob.draw(this.env);
           // Restore
           for (let i = 0; i < 4; i++) {
@@ -513,18 +514,23 @@ export class MainGame {
             ob.points[i].z = cur[i].z;
           }
         } else {
-          // Recycled slot — new obstacle at its spawn z, apply fog
-          ctx.globalAlpha = this._obstacleFogAlpha(cur[0].z);
+          // Recycled slot — draw at current position with rise applied
+          const riseT = this._obstacleRiseT(cur[0].z);
+          const savedY1 = ob.points[1].y;
+          ob.points[1].y = GROUND_Y + (savedY1 - GROUND_Y) * riseT;
           ob.draw(this.env);
+          ob.points[1].y = savedY1;
         }
       } else {
-        // New obstacle this tick — apply fog at current z
-        ctx.globalAlpha = this._obstacleFogAlpha(ob.points[0].z);
+        // New obstacle this tick — apply rise at current z
+        const riseT = this._obstacleRiseT(ob.points[0].z);
+        const savedY1 = ob.points[1].y;
+        ob.points[1].y = GROUND_Y + (savedY1 - GROUND_Y) * riseT;
         ob.draw(this.env);
+        ob.points[1].y = savedY1;
       }
       ob = ob.next;
     }
-    ctx.globalAlpha = 1; // restore for everything drawn after
   }
 
   _drawShip(alpha, ctx) {
@@ -535,15 +541,34 @@ export class MainGame {
     const interpCounter = this._prevShipCounter + alpha * (this.shipCounter - this._prevShipCounter);
 
     // Smooth sinusoidal bob instead of the original step function
+    const bobNorm = Math.sin(interpCounter * Math.PI / 6); // −1 to 1
     const bobAmp = 2 * h / 200;
-    const bobY = Math.sin(interpCounter * Math.PI / 6) * bobAmp;
-    let shipY = (24 * h / 200) - bobY;
+    let shipY = (24 * h / 200) - bobNorm * bobAmp;
 
     // Rise from bottom at game start (interpolate score for smooth rise)
     const interpScore = this._prevLogicScore + alpha * (this.score - this._prevLogicScore);
     if (interpScore < 200) {
       shipY = (12 + interpScore / 20) * h / 200;
     }
+
+    // Banking interpolation (used for shadow lateral shift)
+    const interpVx = this._prevVx + alpha * (this.vx - this._prevVx);
+
+    // ── Dynamic shadow ──
+    // Blurred ellipse on the water surface; tracks ship banking and bob.
+    const shadowY = h - (7 * h / 200);
+    const shadowX = this.centerX - interpVx * 20 * w / 320;
+    // Bob: ship higher → shadow slightly smaller and dimmer
+    const heightFactor = 1 - bobNorm * 0.12;
+    const blurPx = Math.round(4 * w / 320);
+    ctx.save();
+    ctx.filter = `blur(${blurPx}px)`;
+    ctx.globalAlpha = 0.45 * Math.max(0.7, heightFactor);
+    ctx.fillStyle = 'rgb(0, 20, 60)';
+    ctx.beginPath();
+    ctx.ellipse(shadowX, shadowY, this.mywidth2 * 1.1 * heightFactor, 4 * h / 200 * heightFactor, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
 
     // Sprite frame alternation (discrete, every 4 ticks)
     const img = (this.shipCounter % 4 > 1) ? this.myImg2 : this.myImg;

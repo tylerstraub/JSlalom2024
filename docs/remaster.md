@@ -99,21 +99,21 @@ _project(p):
 
 ## Visual Enhancements
 
-### Distance fog (obstacle fade-in)
-Obstacles spawn at z≈40.5 and fade from transparent to fully opaque over a short z window, eliminating pop-in:
+### Spike rise (obstacle emergence)
+Obstacles spawn flush with the water surface and extend upward to full height over a short z window, like spikes rising from the water:
 ```javascript
-_obstacleFogAlpha(interpZ):
-  FAR  = 40.5   // fully transparent at spawn
-  NEAR = 36     // fully opaque from here (~220ms of travel)
-  return clamp((FAR - interpZ) / (FAR - NEAR), 0, 1)
+_obstacleRiseT(z):
+  FAR  = 40.5   // spawn z — apex squashed to ground plane (y=2.0)
+  NEAR = 38     // fully risen by here (~2.5 units = ~137ms of travel)
+  return clamp((FAR - z) / (FAR - NEAR), 0, 1)
 ```
-Uses `ctx.globalAlpha` — perfectly smooth at 60fps because `interpZ` is the interpolated z, not the discrete per-tick z.
+Only `points[1]` (the apex, at y=−1.4) is affected — the three base points at y=2.0 stay planted. Apex y is lerped: `apexY = 2.0 + (realApexY - 2.0) * riseT`. Because the interpolated z is used (not the discrete per-tick value), the animation is perfectly smooth at 60fps.
 
 ### Extended ground plane
 Original ground: z = 0.1 → 28. Remaster: z = 0.1 → 55. Gives more visible terrain depth toward the horizon, reducing the hard "floor edge" at the original draw distance.
 
 ### Extended obstacle spawn distance
-Original spawn: z ≈ 25.5. Remaster spawn: z ≈ 40.5. Obstacles are visible for ~39 logic ticks (~2.1s) before reaching the player vs the original ~24 ticks (~1.3s). Combined with fog fade-in, they materialize gradually from the distance.
+Original spawn: z ≈ 25.5. Remaster spawn: z ≈ 40.5. Obstacles are visible for ~39 logic ticks (~2.1s) before reaching the player vs the original ~24 ticks (~1.3s). Combined with the spike-rise emergence, they visibly grow out of the water as they approach.
 
 ### Smooth ship bob
 Original: step function (`shipCounter % 12 > 6` → 2px up). Remaster: continuous sine wave:
@@ -121,6 +121,13 @@ Original: step function (`shipCounter % 12 > 6` → 2px up). Remaster: continuou
 const interpCounter = prevShipCounter + alpha * (shipCounter - prevShipCounter);
 const bobY = Math.sin(interpCounter * Math.PI / 6) * bobAmplitude;
 ```
+
+### Dynamic ship shadow
+A blurred ellipse drawn on the water surface directly below the ship sprite (painted before the sprite so it sits underneath):
+- Shifts laterally with `interpVx`: banking right moves the shadow right, selling the lean
+- Pulses with the sine bob: when the ship crests up (`bobNorm ≈ 1`), the ellipse shrinks ~12% and dims; at the bottom of the bob it swells back
+- Rendered with `ctx.filter = blur(Xpx)` (X scaled to canvas width) for a soft cast-shadow edge
+- Color: `rgb(0, 20, 60)` at ~45% opacity
 
 ### Sprite scaling
 `ctx.imageSmoothingEnabled = false` — nearest-neighbor scaling for the jet ski sprites, same as the original. Bilinear smoothing produced noticeable blur on the small pixel-art source images at high resolution.
@@ -135,8 +142,8 @@ When the canvas loses focus, a CSS overlay dims the scene and shows a pulsing `�
 | Constant | File | Current value | Effect |
 |----------|------|---------------|--------|
 | Obstacle spawn z | `remaster/js/roundManager.js` `createObstacle()` | `40.5 / 40.0 / 39.5` | How far away obstacles first appear |
-| Fog FAR | `remaster/js/game.js` `_obstacleFogAlpha()` | `40.5` | Should match spawn z — start of fade |
-| Fog NEAR | `remaster/js/game.js` `_obstacleFogAlpha()` | `36` | End of fade; raise toward FAR for quicker fade |
+| Rise FAR | `remaster/js/game.js` `_obstacleRiseT()` | `40.5` | Should match spawn z — apex fully squashed here |
+| Rise NEAR | `remaster/js/game.js` `_obstacleRiseT()` | `38` | Apex fully extended; raise toward FAR for a snappier rise |
 | Ground depth | `remaster/js/ground.js` | `55` | How far the terrain plane extends into the horizon |
 | Recycling guard | `remaster/js/game.js` `_drawObstaclesInterpolated()` | `zDelta < 3` | Threshold to detect pool-recycled obstacle slots |
 
