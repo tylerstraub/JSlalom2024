@@ -3,59 +3,80 @@
 ## What This Is
 HTML5 Canvas restoration of **JSlalom** (1997 Java applet jet ski slalom game by MR-C). Vanilla JS, no build tools, no dependencies. The original decompiled Java source lives in `decomp/` for reference.
 
+This repository contains **two variants**:
+
+| Variant | Entry point | Goal |
+|---------|-------------|------|
+| **Original** | `index.html` | Pixel-exact restoration — every behavior matches the Java applet |
+| **Remaster** | `remaster/index.html` | Fullscreen, 60 fps, anti-aliased — gameplay identical, presentation modernized |
+
+The original is frozen — never modify it. The remaster is the active development target.
+
 ## Quick Start
 ```bash
-# macOS / Linux
-python3 -m http.server 8080
-
 # Windows
 python -m http.server 8080
 
-# Open http://localhost:8080
+# macOS / Linux
+python3 -m http.server 8080
+
+# Original:  http://localhost:8080/
+# Remaster:  http://localhost:8080/remaster/
 ```
 
-## Architecture at a Glance
+## Repository Layout
 ```
-index.html          Entry page (320×200 canvas, native resolution — no CSS scaling)
-js/
-  main.js           Bootstrap: image loading, input binding, game init
-  game.js           Core engine (game loop, physics, rendering, states)
-  drawEnv.js        3D→2D projection (perspective + rotation + lighting)
-  obstacle.js       Obstacle entity + object pool + linked list collection
-  roundManager.js   Base round class (color transitions, obstacle factory)
-  normalRound.js    Random obstacle spawning (4 difficulty intervals)
-  roadRound.js      Corridor obstacles with moving boundaries
-  gameRecorder.js   2-bit packed input recording for deterministic replay
-  randomGenerator.js  Seeded PRNG (must match Java's 32-bit integer math)
-  ground.js         Ground plane quad
-  dpoint3.js        3D point (x, y, z)
-  face.js           Triangle face with surface normal for lighting
-  stringObject.js   Canvas text rendering with alignment
-  numberLabel.js    6-digit score DOM display
+index.html            Original entry (320×200, pixel-exact)
+js/                   Original JS modules (do not modify)
+remaster/
+  index.html          Remaster entry (fullscreen, 16:10 letterboxed)
+  js/                 Remaster JS modules (active development)
+    main.js           Bootstrap, resize handling, focus overlay wiring
+    game.js           Engine: dual loop (55ms logic + RAF render), interpolation
+    drawEnv.js        Canvas 2D rendering — replaces pixel buffer
+    ground.js         Ground plane (extended draw distance vs original)
+    roundManager.js   Obstacle factory (spawn z pushed further than original)
+    [others]          Copied from original — unchanged game logic
 audio/
-  BOMB.wav          Original explosion sound (recovered from gameplay footage)
+  BOMB.wav            Original explosion sound (recovered from gameplay footage)
 jar/
-  JSlalom.jar       Original JAR (18 classes + sprites; no audio bundled)
-decomp/             Decompiled Java source — authoritative behavioral reference
+  JSlalom.jar         Original JAR (18 classes + sprites)
+decomp/               Decompiled Java source — authoritative behavioral reference
+docs/
+  architecture.md     Original restoration: full technical reference
+  remaster.md         Remaster: rendering pipeline, interpolation, tuning guide
 ```
 
-## Key Technical Constraints
-- **Frame rate**: `setTimeout`-based loop, 55ms delay normally (~18 FPS). Physics are frame-coupled — do NOT decouple.
-- **Speed mode**: When A is held (`spcFlag=true`), next tick is scheduled at 0ms — matching Java's "skip the wait" behavior for truly uncapped FPS.
-- **PRNG**: Uses `Math.imul` for 32-bit integer math. Must stay deterministic for replay.
-- **Resolution**: Native 320×200, displayed 1:1 — no CSS scaling. This matches the original Java applet exactly.
-- **No build tools**: ES modules loaded via `<script type="module">`. Must work with a static file server.
-- **Polygon rendering**: Ground and obstacles use a software scanline rasterizer writing to an `ImageData` pixel buffer (`drawEnv.js`). Do NOT use `ctx.fill()` for game-world polygons — Canvas 2D anti-aliases edges, Java's `fillPolygon()` did not. Text and the bomb ellipse use Canvas 2D directly (AA is correct there, matching original Java AWT).
+## Original — Key Technical Constraints
+These apply to `js/` only. Do NOT change any of these in the original.
+
+- **Frame rate**: `setTimeout`-based loop, 55ms delay (~18 FPS). Physics are frame-coupled.
+- **Speed mode**: A key (`spcFlag=true`) schedules next tick at 0ms.
+- **PRNG**: `Math.imul` for 32-bit integer math. Must stay deterministic for replay.
+- **Resolution**: Native 320×200, 1:1 — no CSS scaling.
+- **Polygon rendering**: Software scanline rasterizer → `ImageData`. Do NOT use `ctx.fill()` — Canvas 2D anti-aliases, Java's `fillPolygon()` did not.
+
+## Remaster — Key Technical Constraints
+These apply to `remaster/js/` only.
+
+- **Game logic is untouched**: all physics, PRNG, collision, round system identical to original.
+- **Dual loop**: `setTimeout` at 55ms drives logic; `requestAnimationFrame` drives rendering at 60fps.
+- **Interpolation**: `_savePrevState()` snapshots obstacle positions before each tick; render lerps between prev and current using `alpha = (now - lastTickTime) / 55`.
+- **Recycling guard**: obstacle pool reuses objects — detect recycled slots by z-delta > 3 units and skip interpolation for that frame.
+- **Rendering**: Canvas 2D `ctx.fill()` paths — anti-aliased edges, no pixel buffer.
+- **Asset paths**: remaster JS references `../jiki.gif`, `../jiki2.gif`, `../audio/BOMB.wav`.
 
 ## Game Flow
 Title screen → Space to play → Dodge obstacles → 20 hits = game over → Title screen.
 6 rounds at score thresholds: 8K → 12K → 25K → 40K → 100K → 1M.
 
 ## Detailed Documentation
-See `docs/architecture.md` for full technical reference (physics values, rendering pipeline, round system, collision math, recording format).
+- `docs/architecture.md` — Original restoration: full technical reference
+- `docs/remaster.md` — Remaster: rendering pipeline, interpolation system, tunable constants
 
 ## Conventions
 - All colors are `{r, g, b}` objects (0–255), converted to CSS strings at render time.
 - Obstacle pool pattern: `Obstacle.newObstacle()` / `obstacle.release()`.
-- Java source in `decomp/` is the authoritative reference for any behavioral questions.
-- `env.drawFace(face)` and `env.drawPolygon(color, points)` do NOT take a `ctx` parameter — they write to the internal pixel buffer. Call `env.flush(ctx)` once per frame to blit.
+- Java source in `decomp/` is the authoritative reference for behavioral questions.
+- In the **original**: `env.drawFace(face)` / `env.drawPolygon(color, points)` write to the pixel buffer; call `env.flush(ctx)` to blit.
+- In the **remaster**: `env.setCtx(ctx, w, h)` binds the context each frame; `drawFace`/`drawPolygon` draw immediately; `flush()` is a no-op.
