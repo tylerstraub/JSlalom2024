@@ -145,32 +145,12 @@
     50%       { opacity: 1;   }
   }
 
-  /* Touch controls */
-  #touch-controls {
-    display: none;
-    position: fixed;
-    bottom: 16px;
-    left: 50%;
-    transform: translateX(-50%);
-    gap: 24px;
-    z-index: 10;
-  }
-  .touch-btn {
-    width: 100px;
-    height: 60px;
-    font-size: 28px;
-    background: rgba(255,255,255,0.15);
-    color: #fff;
-    border: 2px solid rgba(255,255,255,0.3);
-    border-radius: 4px;
-    text-align: center;
-    line-height: 60px;
-    touch-action: none;
-    cursor: pointer;
-  }
-  .touch-btn:active { background: rgba(255,255,255,0.3); }
+  /* Touch hint text in resume overlay */
+  .resume-touch { display: none; }
   @media (pointer: coarse) {
-    #touch-controls { display: flex; }
+    .resume-mouse { display: none; }
+    .resume-touch { display: inline; }
+    #focus-nudge svg { display: none; }
   }
 
   /* Panel credit — mirrors game's "Programed by MR-C" style */
@@ -209,13 +189,9 @@
       <svg width="18" height="18" viewBox="0 0 18 18" fill="currentColor">
         <path d="M7 3.5 L14 9 L7 14.5 Z"/>
       </svg>
-      Click to resume
+      <span class="resume-mouse">Click to resume</span>
+      <span class="resume-touch">Tap to resume</span>
     </div>
-  </div>
-
-  <div id="touch-controls">
-    <div class="touch-btn" id="touch-left">&#9664;</div>
-    <div class="touch-btn" id="touch-right">&#9654;</div>
   </div>
 
   <script type="module" src="js/main.js"></script>

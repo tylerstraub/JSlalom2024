@@ -2,7 +2,7 @@
 
 ## Overview
 
-`remaster/` is a modernised presentation layer built on top of the original restored engine. The goal is a fullscreen, 60 fps, anti-aliased experience that feels like a contemporary indie game while keeping core physics and gameplay behaviour identical to the 1997 Java applet.
+The remaster is the primary entry point (`index.html` at the repository root). It is a modernised presentation layer built on top of the original restored engine. The goal is a fullscreen, 60 fps, anti-aliased experience that feels like a contemporary indie game while keeping core physics and gameplay behaviour identical to the 1997 Java applet.
 
 **What changes**: rendering pipeline, frame timing, canvas resolution, visual polish, continue system removed.
 **What doesn't change**: physics, PRNG, collision detection, round system, replay recording — all untouched.
@@ -73,7 +73,7 @@ flush(ctx)             → ctx.putImageData()
 ```
 Hard-edged integer pixels, no anti-aliasing. Matches Java's `fillPolygon()` exactly.
 
-### Remaster (`remaster/js/drawEnv.js`)
+### Remaster (`js/drawEnv.js`)
 ```
 setCtx(ctx, w, h)      → bind context + dimensions for this frame
 clearBuffer(r,g,b)     → ctx.fillRect (full canvas)
@@ -133,14 +133,32 @@ A blurred ellipse drawn on the water surface directly below the ship sprite (pai
 `ctx.imageSmoothingEnabled = false` — nearest-neighbor scaling for the jet ski sprites, same as the original. Bilinear smoothing produced noticeable blur on the small pixel-art source images at high resolution.
 
 ### Pause system
-When focus is lost the game fully pauses — the logic tick (`setTimeout`) is cleared so physics, score, and damage are frozen. A CSS overlay dims the scene and shows a pulsing `▶ Click to resume` prompt. Clicking the canvas (or any event that refocuses it) resumes the tick with a fresh `lastTickTime` to avoid interpolation glitches.
+When focus is lost the game fully pauses — the logic tick (`setTimeout`) is cleared so physics, score, and damage are frozen. A CSS overlay dims the scene and shows a pulsing resume prompt ("Click to resume" on pointer devices, "Tap to resume" on touch). Clicking or tapping the canvas resumes the tick with a fresh `lastTickTime` to avoid interpolation glitches.
 
 Pause triggers:
 - **Tab switch / alt-tab**: `window.blur` event (fires regardless of which DOM element has focus within the page)
 - **In-page focus loss**: canvas `blur` event (e.g. clicking outside the canvas while staying on the tab)
 - **Escape key**: calls `triggerPause()` directly, then `canvas.blur()` to move DOM focus away
+- **App switch (mobile)**: same `window.blur` path; resume via tap on canvas
 
 The game-over overlay takes priority — `triggerPause()` is a no-op while `overlay.style.display === 'flex'`.
+
+### Touch input (mobile)
+The entire canvas is a touch control surface — no on-screen buttons:
+
+| Gesture | Action |
+|---------|--------|
+| Tap / hold left half of canvas | Bank left (`lFlag = true`) |
+| Tap / hold right half of canvas | Bank right (`rFlag = true`) |
+| Lift finger(s) | Stop banking |
+| Tap anywhere (title / demo screen) | Start game immediately |
+| Tap anywhere (pause overlay) | Resume |
+
+Multi-touch is fully supported: holding the left half while tapping the right simultaneously sets both flags, which the physics engine already handles (they cancel out, keeping the ship straight).
+
+`touchcancel` (e.g. incoming phone call) clears both flags so the ship doesn't lock into a bank.
+
+The game-over overlay (Play Again, Send Record) uses standard HTML buttons and works on touch without any extra handling.
 
 ### Canvas resize during game-over
 `_renderFrame()` previously returned early in `GAME_OVER_MODE` as a minor optimisation. Resizing the canvas clears it to black, and the early return meant the scene was never redrawn while the game-over panel was up. The guard was removed; the game-over panel is a DOM element above the canvas so rendering underneath it is harmless.
@@ -151,12 +169,12 @@ The game-over overlay takes priority — `triggerPause()` is a no-op while `over
 
 | Constant | File | Current value | Effect |
 |----------|------|---------------|--------|
-| Obstacle spawn z | `remaster/js/roundManager.js` `createObstacle()` | `40.5 / 40.0 / 39.5` | How far away obstacles first appear |
-| Rise FAR | `remaster/js/game.js` `_obstacleRiseT()` | `40.5` | Should match spawn z — apex fully squashed here |
-| Rise NEAR | `remaster/js/game.js` `_obstacleRiseT()` | `38` | Apex fully extended; raise toward FAR for a snappier rise |
-| Ground depth | `remaster/js/ground.js` | `55` | How far the terrain plane extends into the horizon |
-| Recycling guard | `remaster/js/game.js` `_drawObstaclesInterpolated()` | `zDelta < 3` | Threshold to detect pool-recycled obstacle slots |
-| Spawn compensation | `remaster/js/roundManager.js` `createObstacleRandom()` | `39` ticks | Lead time used to offset spawn x by `−vx × 39`; matches z-travel from spawn (40.5) to collision zone (1.1) |
+| Obstacle spawn z | `js/roundManager.js` `createObstacle()` | `40.5 / 40.0 / 39.5` | How far away obstacles first appear |
+| Rise FAR | `js/game.js` `_obstacleRiseT()` | `40.5` | Should match spawn z — apex fully squashed here |
+| Rise NEAR | `js/game.js` `_obstacleRiseT()` | `38` | Apex fully extended; raise toward FAR for a snappier rise |
+| Ground depth | `js/ground.js` | `55` | How far the terrain plane extends into the horizon |
+| Recycling guard | `js/game.js` `_drawObstaclesInterpolated()` | `zDelta < 3` | Threshold to detect pool-recycled obstacle slots |
+| Spawn compensation | `js/roundManager.js` `createObstacleRandom()` | `39` ticks | Lead time used to offset spawn x by `−vx × 39`; matches z-travel from spawn (40.5) to collision zone (1.1) |
 
 ---
 
@@ -171,22 +189,24 @@ The game-over overlay takes priority — `triggerPause()` is a no-op while `over
 
 ## Asset Paths
 
-The remaster lives in `remaster/` but shares assets from the repository root:
+The remaster is at the repository root, so all assets are root-relative:
 
-| Asset | Path from remaster JS |
-|-------|-----------------------|
-| Sprite frame 1 | `../jiki.gif` |
-| Sprite frame 2 | `../jiki2.gif` |
-| Bomb sound | `../audio/BOMB.wav` |
+| Asset | Path |
+|-------|------|
+| Sprite frame 1 | `jiki.gif` |
+| Sprite frame 2 | `jiki2.gif` |
+| Bomb sound | `audio/BOMB.wav` |
 
 ---
 
 ## File Differences from Original
 
+All paths below are relative to the repository root (remaster lives at root; original is archived under `original/`).
+
 | File | Status | Notes |
 |------|--------|-------|
-| `index.html` | Rewritten | Fullscreen canvas, HUD (score + hi-score), game-over panel with credit, focus overlay, retro-consistent typography (Times New Roman / Courier New) |
-| `js/main.js` | Rewritten | Letterbox resize, focus/pause wiring, mouse-start input guard (steering flags only set in PLAY_MODE) |
+| `index.html` | Rewritten | Fullscreen canvas, HUD (score + hi-score), game-over panel with credit, focus overlay with adaptive mouse/touch resume text, retro-consistent typography (Times New Roman / Courier New) |
+| `js/main.js` | Rewritten | Letterbox resize, focus/pause wiring, mouse-start input guard (steering flags only set in PLAY_MODE), screen-half canvas touch controls (left half/right half → lFlag/rFlag, touchcancel guard) |
 | `js/game.js` | Rewritten | Dual loop, interpolation, separated render from tick logic, continue system removed, sqrt font scaling |
 | `js/drawEnv.js` | Rewritten | Canvas 2D paths, scale-aware projection, no pixel buffer |
 | `js/ground.js` | Modified | Extended draw distance (z=55 vs z=28) |

@@ -101,16 +101,51 @@ async function init() {
     game.keyEvent(e.keyCode, false);
   });
 
-  // ── Touch controls ─────────────────────────────────────────────────────────
+  // ── Touch (canvas — screen-half steering) ─────────────────────────────────
 
-  const touchLeft = document.getElementById('touch-left');
-  const touchRight = document.getElementById('touch-right');
-  if (touchLeft && touchRight) {
-    touchLeft.addEventListener('touchstart',  (e) => { e.preventDefault(); game.keyEvent(37, true);  });
-    touchLeft.addEventListener('touchend',    (e) => { e.preventDefault(); game.keyEvent(37, false); });
-    touchRight.addEventListener('touchstart', (e) => { e.preventDefault(); game.keyEvent(39, true);  });
-    touchRight.addEventListener('touchend',   (e) => { e.preventDefault(); game.keyEvent(39, false); });
+  // Recompute lFlag/rFlag from the set of currently active touches.
+  // Left half of canvas → bank left, right half → bank right.
+  // Multi-touch is supported: holding both sides steers both flags.
+  function evaluateTouchFlags(touches) {
+    const rect = canvas.getBoundingClientRect();
+    const midX = rect.left + rect.width / 2;
+    game.lFlag = false;
+    game.rFlag = false;
+    for (const t of touches) {
+      if (t.clientX < midX) game.lFlag = true;
+      else                   game.rFlag = true;
+    }
   }
+
+  canvas.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    // Resume if the pause overlay is up (e.g. came back from another app).
+    if (focusOverlay.classList.contains('visible')) {
+      focusOverlay.classList.remove('visible');
+      game.resume();
+      canvas.focus();
+      return;
+    }
+    // Don't steal taps from the game-over overlay buttons.
+    if (overlay.style.display === 'flex') return;
+    if (game.gameMode === 0) {
+      evaluateTouchFlags(e.touches);
+    } else {
+      // Title / demo: start the game immediately on first tap.
+      game.isFocus2 = true;
+      game.startGame(0);
+    }
+  }, { passive: false });
+
+  canvas.addEventListener('touchend', (e) => {
+    e.preventDefault();
+    evaluateTouchFlags(e.touches); // e.touches = remaining active touches
+  }, { passive: false });
+
+  canvas.addEventListener('touchcancel', () => {
+    game.lFlag = false;
+    game.rFlag = false;
+  });
 
   // ── Mouse ──────────────────────────────────────────────────────────────────
 
