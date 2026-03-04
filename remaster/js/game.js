@@ -552,8 +552,7 @@ export class MainGame {
     const spriteH = (this.mywidth2 * 16 / 52) | 0;
 
     if (img && img.complete && img.naturalWidth > 0) {
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = 'high';
+      ctx.imageSmoothingEnabled = false;
       ctx.drawImage(img, this.centerX - this.mywidth2, h - shipY, spriteW, spriteH);
     }
   }
