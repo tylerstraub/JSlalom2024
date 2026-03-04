@@ -63,6 +63,7 @@ export class MainGame {
 
     // Bomb sound via Web Audio API
     this.audioCtx = null;
+    this.bombBuffer = null;
 
     // Sin/cos lookup table (128 entries)
     this.si = new Float64Array(128);
@@ -127,7 +128,7 @@ export class MainGame {
       this.centerX, this.centerY + 86);
 
     // Timer handle
-    this._intervalId = null;
+    this._timerId = null;
   }
 
   loadImages() {
@@ -150,27 +151,22 @@ export class MainGame {
   initAudio() {
     try {
       this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      fetch('audio/BOMB.wav')
+        .then(r => r.arrayBuffer())
+        .then(ab => this.audioCtx.decodeAudioData(ab))
+        .then(buf => { this.bombBuffer = buf; })
+        .catch(() => {});
     } catch (e) {
       // Audio not available
     }
   }
 
   playBombSound() {
-    if (!this.audioCtx) return;
+    if (!this.audioCtx || !this.bombBuffer) return;
     try {
-      const ctx = this.audioCtx;
-      const duration = 0.3;
-      const bufferSize = ctx.sampleRate * duration;
-      const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-      const data = buffer.getChannelData(0);
-      for (let i = 0; i < bufferSize; i++) {
-        const t = i / ctx.sampleRate;
-        // White noise with exponential decay
-        data[i] = (Math.random() * 2 - 1) * Math.exp(-t * 10) * 0.5;
-      }
-      const source = ctx.createBufferSource();
-      source.buffer = buffer;
-      source.connect(ctx.destination);
+      const source = this.audioCtx.createBufferSource();
+      source.buffer = this.bombBuffer;
+      source.connect(this.audioCtx.destination);
       source.start();
     } catch (e) {
       // Ignore audio errors
@@ -262,14 +258,14 @@ export class MainGame {
     this.vx = 0;
     this.gameMode = TITLE_MODE;
 
-    // Start game loop at ~18 FPS (55ms interval)
-    this._intervalId = setInterval(() => this.tick(), 55);
+    // Start game loop: setTimeout-based so speed mode can skip the wait
+    this._timerId = setTimeout(() => this.tick(), 55);
   }
 
   stop() {
-    if (this._intervalId !== null) {
-      clearInterval(this._intervalId);
-      this._intervalId = null;
+    if (this._timerId !== null) {
+      clearTimeout(this._timerId);
+      this._timerId = null;
     }
     this.gameMode = TITLE_MODE;
   }
@@ -357,6 +353,10 @@ export class MainGame {
         this.prevScore = 110000;
         this.contNum = 100;
         this.startGame(PLAY_MODE, true);
+      }
+      // G key - GC hint (no-op in JS, mirrors Java's System.gc())
+      if (keyCode === 71) {
+        // no-op
       }
     }
   }
@@ -595,6 +595,13 @@ export class MainGame {
     this.gameMode = TITLE_MODE;
   }
 
+  _scheduleNext() {
+    // When spcFlag (A held): schedule immediately (0ms), matching Java's
+    // "skip the wait" behavior for truly uncapped speed mode.
+    // Otherwise: 55ms fixed interval (~18 FPS).
+    this._timerId = setTimeout(() => this.tick(), this.spcFlag ? 0 : 55);
+  }
+
   tick() {
     // Round advancement
     if (this.rounds[this.round].isNextRound(this.score)) {
@@ -605,17 +612,6 @@ export class MainGame {
     this.moveObstacle();
     this.prt();
 
-    // Speed mode: when A is held, skip timer wait (Java runs unlimited FPS).
-    // Approximate by running ~9 extra ticks per interval.
-    if (this.spcFlag) {
-      for (let i = 0; i < 9; i++) {
-        if (this.rounds[this.round].isNextRound(this.score)) {
-          this.round++;
-        }
-        this.keyOperate();
-        this.moveObstacle();
-        this.prt();
-      }
-    }
+    this._scheduleNext();
   }
 }

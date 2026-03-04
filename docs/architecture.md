@@ -1,8 +1,21 @@
 # JSlalom — Architecture Reference
 
+## Game Loop
+
+The loop uses `setTimeout`-based self-scheduling (not `setInterval`) so that speed mode can truly skip the wait:
+
+```javascript
+_scheduleNext() {
+  this._timerId = setTimeout(() => this.tick(), this.spcFlag ? 0 : 55);
+}
+```
+
+- **Normal**: 55ms delay → ~18 FPS, matching Java's `timer.wait1step()`
+- **Speed mode (A held)**: 0ms delay → browser fires ASAP, matching Java's uncapped loop when `spcFlag` is true
+
 ## Rendering Pipeline
 
-Each frame (55ms):
+Each frame (55ms nominal):
 1. Fill sky with current round's sky color (with 32-frame transition between rounds)
 2. Draw ground quad (4 vertices projected through 3D pipeline)
 3. Draw all active obstacles (each has 2 visible triangle faces)
@@ -100,6 +113,11 @@ Uses `Math.imul()` for exact 32-bit multiplication matching Java.
 - **PLAY_MODE (0)**: Active gameplay. Score increments. Input recorded.
 - **DEMO_MODE (2)**: Replays recorded input from hi-score run.
 
+## Audio
+`BOMB.wav` is preloaded into a Web Audio API buffer at `initAudio()` time (called when the player first starts a game). `playBombSound()` plays the buffer on every collision hit (damaged === 1).
+
+The original `bomb.au` was not bundled in the JAR — it was served separately from the 1997 web server. The WAV in `audio/` was recovered from original gameplay footage.
+
 ## Damage Animation
 Expanding ellipse centered at (centerX, 186*h/200). Each frame: `damaged++`, radius grows by 8px×4px. Color fades from white to red over 20 frames. At damaged > 20 → game over.
 
@@ -113,20 +131,35 @@ Expanding ellipse centered at (centerX, 186*h/200). Each frame: `damaged++`, rad
 - Vertical bob: y oscillates between 22–24 pixels from bottom every 12 frames
 - Entry animation: sprite rises from bottom during first 200 score points (10 frames)
 
+## Key Mappings
+| Key | Code | Behavior |
+|-----|------|----------|
+| Arrow Left / J | 37 / 74 | Steer left |
+| Arrow Right / L | 39 / 76 | Steer right |
+| A | 65 | Speed mode (hold) — uncapped FPS |
+| Space / C | 32 / 67 | Start / continue game |
+| D | 68 | Start demo replay |
+| T | 84 | Test mode (jump to round 6) |
+| G | 71 | No-op — mirrors Java's `System.gc()` call |
+
 ## File Mapping (JS ← Java)
-| JS Module | Java Source | Lines |
-|-----------|------------|-------|
-| game.js | MainGame.java | 632 |
-| drawEnv.js | DrawEnv.java | 58 |
-| obstacle.js | Obstacle.java + ObstacleCollection.java | 114 |
-| roundManager.js | RoundManager.java | 70 |
-| normalRound.js | NormalRound.java | 28 |
-| roadRound.js | RoadRound.java | 94 |
-| gameRecorder.js | GameRecorder.java | 79 |
-| randomGenerator.js | RandomGenerator.java | 16 |
-| ground.js | Ground.java | 12 |
-| face.js | Face.java | 30 |
-| dpoint3.js | DPoint3.java | 20 |
-| stringObject.js | StringObject.java | 85 |
-| numberLabel.js | NumberLabel.java | 50 |
-| main.js | Game3D.java + AppFrame.java | 233 |
+| JS Module | Java Source |
+|-----------|------------|
+| game.js | MainGame.java |
+| drawEnv.js | DrawEnv.java |
+| obstacle.js | Obstacle.java + ObstacleCollection.java |
+| roundManager.js | RoundManager.java |
+| normalRound.js | NormalRound.java |
+| roadRound.js | RoadRound.java |
+| gameRecorder.js | GameRecorder.java |
+| randomGenerator.js | RandomGenerator.java |
+| ground.js | Ground.java |
+| face.js | Face.java |
+| dpoint3.js | DPoint3.java |
+| stringObject.js | StringObject.java |
+| numberLabel.js | NumberLabel.java |
+| main.js | Game3D.java + AppFrame.java |
+
+Not ported (infrastructure only):
+- `TimerNotifier.java` → replaced by `setTimeout`
+- `DrawObject.java` → empty abstract base class; JS uses duck typing

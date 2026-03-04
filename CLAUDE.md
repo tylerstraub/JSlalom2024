@@ -5,7 +5,12 @@ HTML5 Canvas restoration of **JSlalom** (1997 Java applet jet ski slalom game by
 
 ## Quick Start
 ```bash
+# macOS / Linux
 python3 -m http.server 8080
+
+# Windows
+python -m http.server 8080
+
 # Open http://localhost:8080
 ```
 
@@ -27,10 +32,16 @@ js/
   face.js           Triangle face with surface normal for lighting
   stringObject.js   Canvas text rendering with alignment
   numberLabel.js    6-digit score DOM display
+audio/
+  BOMB.wav          Original explosion sound (recovered from gameplay footage)
+jar/
+  JSlalom.jar       Original JAR (18 classes + sprites; no audio bundled)
+decomp/             Decompiled Java source — authoritative behavioral reference
 ```
 
 ## Key Technical Constraints
-- **Frame rate**: Fixed 55ms `setInterval` (~18 FPS). Physics are frame-coupled — do NOT decouple.
+- **Frame rate**: `setTimeout`-based loop, 55ms delay normally (~18 FPS). Physics are frame-coupled — do NOT decouple.
+- **Speed mode**: When A is held (`spcFlag=true`), next tick is scheduled at 0ms — matching Java's "skip the wait" behavior for truly uncapped FPS.
 - **PRNG**: Uses `Math.imul` for 32-bit integer math. Must stay deterministic for replay.
 - **Resolution**: Native 320×200, CSS-scaled with `image-rendering: pixelated`.
 - **No build tools**: ES modules loaded via `<script type="module">`. Must work with a static file server.
