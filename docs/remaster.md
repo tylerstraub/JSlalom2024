@@ -123,7 +123,7 @@ const bobY = Math.sin(interpCounter * Math.PI / 6) * bobAmplitude;
 ```
 
 ### Sprite scaling
-`ctx.imageSmoothingEnabled = true` with `imageSmoothingQuality = 'high'` for bilinear upscaling of the jet ski sprites. (Nearest-neighbor is used in the original.)
+`ctx.imageSmoothingEnabled = false` — nearest-neighbor scaling for the jet ski sprites, same as the original. Bilinear smoothing produced noticeable blur on the small pixel-art source images at high resolution.
 
 ### Focus overlay
 When the canvas loses focus, a CSS overlay dims the scene and shows a pulsing `▶ Click to resume` prompt — replacing the original in-canvas `"Click!!"` StringObject. Implemented entirely in CSS/DOM; the game render is unaffected.
@@ -180,4 +180,4 @@ The remaster lives in `remaster/` but shares assets from the repository root:
 
 ## Planned Work
 
-- **Sprite upscaling**: replace `jiki.gif` / `jiki2.gif` with higher-resolution sprites. Research underway into upscaling approach (AI upscaling, hand-drawn redraw, or procedural recreation). The remaster already uses bilinear smoothing; a higher-res source image would eliminate the remaining blurriness.
+- **Sprite upscaling**: the sprites are drawn nearest-neighbor from 104×16 source GIFs. A higher-resolution source (via AI upscaler, xBR algorithm, or hand-redraw) would give smoother results at large canvas sizes.

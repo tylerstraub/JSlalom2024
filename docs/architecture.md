@@ -145,11 +145,9 @@ The original applet used a server-side CGI (`regist.cgi`) and a flat file (`rank
 | `jslalom_rankings` | JSON array of `{ score, name }` objects, up to 20 entries, sorted descending |
 
 ### Game-over overlay
-After a play-mode crash, `GAME_OVER_MODE` activates and `main.js` shows an overlay with two AWT-style buttons:
+After a play-mode crash, `GAME_OVER_MODE` activates and `main.js` shows an overlay with:
 - **Play Again** — returns to title without saving a ranking entry
-- **Send Record** — saves `{ score, name }` to `jslalom_rankings` and disables itself to prevent duplicates. Always enabled (any score is worth recording locally).
-
-The name input defaults to empty; ranking name defaults to `"No name"` if Send Record is clicked without typing anything.
+- **Send Record** + name input — saves `{ score, name }` to `jslalom_rankings`. The button is disabled until the player types a non-empty name; after a successful submission the entire row (button + input) is hidden, leaving only Play Again.
 
 ### Title screen ranking display
 The top 10 submitted scores are shown in two pages of 5 during the title screen animation (pages cycle every 100 frames). Up to 20 scores are retained in storage; only the top 10 are displayed.

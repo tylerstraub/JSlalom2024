@@ -10,6 +10,7 @@ async function init() {
   const playAgainBtn = document.getElementById('play-again-btn');
   const sendRecordBtn = document.getElementById('send-record-btn');
   const nameInput = document.getElementById('player-name');
+  const sendRecordRow = document.getElementById('send-record-row');
 
   // Parse ?lang=JP from URL
   const params = new URLSearchParams(window.location.search);
@@ -23,17 +24,23 @@ async function init() {
   await game.loadImages();
 
   // Game-over overlay logic
+  nameInput.addEventListener('input', () => {
+    sendRecordBtn.disabled = nameInput.value.trim() === '';
+  });
+
   game.onGameOver = (isNewRecord) => {
     nameInput.value = '';
-    sendRecordBtn.disabled = false;
+    sendRecordBtn.disabled = true;
+    sendRecordRow.style.display = '';
     overlay.style.display = 'block';
     nameInput.focus();
   };
 
   sendRecordBtn.addEventListener('click', () => {
-    const name = nameInput.value.trim() || 'No name';
+    const name = nameInput.value.trim();
+    if (!name) return;
     game.saveRanking(game.prevScore, name);
-    sendRecordBtn.disabled = true;
+    sendRecordRow.style.display = 'none';
   });
 
   playAgainBtn.addEventListener('click', () => {
