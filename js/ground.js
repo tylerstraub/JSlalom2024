@@ -11,8 +11,7 @@ export class Ground {
     this.color = null; // {r, g, b}
   }
 
-  draw(ctx, env) {
-    ctx.fillStyle = `rgb(${this.color.r},${this.color.g},${this.color.b})`;
-    env.drawPolygon(ctx, this.points);
+  draw(env) {
+    env.drawPolygon(this.color, this.points);
   }
 }

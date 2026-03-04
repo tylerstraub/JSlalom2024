@@ -16,12 +16,28 @@ _scheduleNext() {
 ## Rendering Pipeline
 
 Each frame (55ms nominal):
-1. Fill sky with current round's sky color (with 32-frame transition between rounds)
-2. Draw ground quad (4 vertices projected through 3D pipeline)
-3. Draw all active obstacles (each has 2 visible triangle faces)
-4. Draw player sprite (alternates jiki.gif/jiki2.gif every 4 frames, bobs every 12)
-5. Draw damage explosion oval if hit
-6. Draw title screen overlay if in TITLE_MODE
+1. Clear `ImageData` pixel buffer with sky color
+2. Draw ground quad into pixel buffer (scanline fill)
+3. Draw all active obstacles into pixel buffer (scanline fill, each has 2 triangle faces)
+4. Blit pixel buffer to canvas via `ctx.putImageData()`
+5. Draw player sprite with `ctx.imageSmoothingEnabled = false` (alternates jiki.gif/jiki2.gif every 4 frames, bobs every 12)
+6. Draw damage explosion oval if hit (`ctx.ellipse`)
+7. Draw title screen text overlay if in TITLE_MODE (`ctx.fillText`)
+
+### Pixel-Exact Polygon Rendering (drawEnv.js)
+All polygon fills (ground, obstacles) write directly to a `Uint8ClampedArray` (`ImageData`) using a software scanline rasterizer, then blit the whole buffer at once with `ctx.putImageData()`. This matches Java's `fillPolygon()` behavior — hard-edged integer pixels, no anti-aliasing.
+
+Text and the bomb ellipse use Canvas 2D directly (AA retained, matching the original Java AWT rendering).
+
+### Scanline Rasterizer
+```
+For each polygon (n vertices, integer screen coords):
+  yMin = min(v.y), yMax = max(v.y)
+  For y = yMin to yMax:
+    For each non-horizontal edge (v1, v2):
+      if yLo <= y <= yHi: x = v1.x + (y - v1.y) * (v2.x - v1.x) / (v2.y - v1.y)
+    Fill pixel buffer from xLeft to xRight at row y
+```
 
 ### 3D Projection (drawEnv.js)
 ```
@@ -29,8 +45,8 @@ For each 3D point (x, y, z):
   scale = 120 / (1 + 0.6 * z)
   rotX = cos * x + sin * (y - 2.0)
   rotY = -sin * x + cos * (y - 2.0) + 2.0
-  screenX = rotX * (width/320) * scale + width/2
-  screenY = rotY * (height/200) * scale + height/2
+  screenX = (rotX * scale | 0) + 160
+  screenY = (rotY * scale | 0) + 100
 ```
 Rotation is driven by player velocity (sin/cos lookup from 128-entry table).
 

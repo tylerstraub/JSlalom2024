@@ -50,9 +50,9 @@ export class Obstacle {
     this.faces[1].calcMaxZ();
   }
 
-  draw(ctx, env) {
-    env.drawFace(ctx, this.faces[0]);
-    env.drawFace(ctx, this.faces[1]);
+  draw(env) {
+    env.drawFace(this.faces[0]);
+    env.drawFace(this.faces[1]);
   }
 
   release() {
@@ -107,10 +107,10 @@ export class ObstacleCollection {
     }
   }
 
-  draw(ctx, env) {
+  draw(env) {
     let current = this.head.next;
     while (current !== this.tail) {
-      current.draw(ctx, env);
+      current.draw(env);
       current = current.next;
     }
   }

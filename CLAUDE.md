@@ -45,6 +45,7 @@ decomp/             Decompiled Java source — authoritative behavioral referenc
 - **PRNG**: Uses `Math.imul` for 32-bit integer math. Must stay deterministic for replay.
 - **Resolution**: Native 320×200, CSS-scaled with `image-rendering: pixelated`.
 - **No build tools**: ES modules loaded via `<script type="module">`. Must work with a static file server.
+- **Polygon rendering**: Ground and obstacles use a software scanline rasterizer writing to an `ImageData` pixel buffer (`drawEnv.js`). Do NOT use `ctx.fill()` for game-world polygons — Canvas 2D anti-aliases edges, Java's `fillPolygon()` did not. Text and the bomb ellipse use Canvas 2D directly (AA is correct there, matching original Java AWT).
 
 ## Game Flow
 Title screen → Space to play → Dodge obstacles → 20 hits = game over → Title screen.
@@ -57,3 +58,4 @@ See `docs/architecture.md` for full technical reference (physics values, renderi
 - All colors are `{r, g, b}` objects (0–255), converted to CSS strings at render time.
 - Obstacle pool pattern: `Obstacle.newObstacle()` / `obstacle.release()`.
 - Java source in `decomp/` is the authoritative reference for any behavioral questions.
+- `env.drawFace(face)` and `env.drawPolygon(color, points)` do NOT take a `ctx` parameter — they write to the internal pixel buffer. Call `env.flush(ctx)` once per frame to blit.

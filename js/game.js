@@ -25,6 +25,8 @@ export class MainGame {
     this.centerY = 100;
 
     this.env = new DrawEnv();
+    this.env.initBuffer();
+
     this.ground = new Ground();
     this.recorder = new GameRecorder();
     this.hiscoreRec = null;
@@ -432,10 +434,9 @@ export class MainGame {
   prt() {
     const ctx = this.ctx;
 
-    // Draw sky
+    // Draw sky into pixel buffer
     const sky = this.rounds[this.round].getSkyColor();
-    ctx.fillStyle = `rgb(${sky.r},${sky.g},${sky.b})`;
-    ctx.fillRect(0, 0, this.width, this.height);
+    this.env.clearBuffer(sky.r, sky.g, sky.b);
 
     // Score increment (every frame in play mode)
     if (this.gameMode === PLAY_MODE) {
@@ -446,12 +447,13 @@ export class MainGame {
     }
     this.scFlag = !this.scFlag;
 
-    // Draw ground
+    // Draw ground and obstacles into pixel buffer (pixel-exact, no AA)
     this.ground.color = this.rounds[this.round].getGroundColor();
-    this.ground.draw(ctx, this.env);
+    this.ground.draw(this.env);
+    this.obstacles.draw(this.env);
 
-    // Draw obstacles
-    this.obstacles.draw(ctx, this.env);
+    // Blit pixel buffer to canvas
+    this.env.flush(ctx);
 
     // Draw player ship
     this.shipCounter++;
@@ -478,6 +480,7 @@ export class MainGame {
       const spriteH = (this.mywidth2 * 16 / 52) | 0;
 
       if (img && img.complete && img.naturalWidth > 0) {
+        ctx.imageSmoothingEnabled = false;
         ctx.drawImage(img, this.centerX - this.mywidth2, this.height - shipY, spriteW, spriteH);
       }
 

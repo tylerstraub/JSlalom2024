@@ -3,8 +3,8 @@ export const ALIGN_LEFT = 1;
 
 export class StringObject {
   constructor(font, color, str, x, y) {
-    this.font = font;       // CSS font string
-    this.color = color;     // CSS color string
+    this.font = font;
+    this.color = color;
     this.str = str;
     this.x = x;
     this.y = y;
@@ -19,7 +19,6 @@ export class StringObject {
     ctx.fillStyle = this.color;
     ctx.font = this.font;
 
-    // Measure text if needed
     if (this._strWidth < 0) {
       const metrics = ctx.measureText(this.str);
       this._strWidth = metrics.width;
