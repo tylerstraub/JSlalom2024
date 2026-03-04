@@ -11,6 +11,7 @@ async function init() {
   const sendRecordBtn = document.getElementById('send-record-btn');
   const nameInput = document.getElementById('player-name');
   const sendRecordRow = document.getElementById('send-record-row');
+  const focusOverlay = document.getElementById('focus-overlay');
 
   const params = new URLSearchParams(window.location.search);
   const langParam = params.get('lang') || params.get('LANG');
@@ -48,6 +49,20 @@ async function init() {
 
   await game.loadImages();
 
+  // ── Pause / resume ─────────────────────────────────────────────────────────
+
+  function triggerPause() {
+    if (overlay.style.display === 'flex') return; // game-over panel is up
+    focusOverlay.classList.add('visible');
+    game.pause();
+  }
+
+  // Window-level blur catches tab switches and alt-tab, regardless of which
+  // element has focus within the page.
+  window.addEventListener('blur', triggerPause);
+
+  // ── Score submission ───────────────────────────────────────────────────────
+
   nameInput.addEventListener('input', () => {
     sendRecordBtn.disabled = nameInput.value.trim() === '';
   });
@@ -74,8 +89,11 @@ async function init() {
     canvas.focus();
   });
 
+  // ── Keyboard ───────────────────────────────────────────────────────────────
+
   document.addEventListener('keydown', (e) => {
     if (document.activeElement === nameInput) return;
+    if (e.keyCode === 27) { triggerPause(); canvas.blur(); return; }
     if ([37, 39, 32].includes(e.keyCode)) e.preventDefault();
     game.keyEvent(e.keyCode, true);
   });
@@ -83,6 +101,8 @@ async function init() {
     if (document.activeElement === nameInput) return;
     game.keyEvent(e.keyCode, false);
   });
+
+  // ── Touch controls ─────────────────────────────────────────────────────────
 
   const touchLeft = document.getElementById('touch-left');
   const touchRight = document.getElementById('touch-right');
@@ -92,6 +112,8 @@ async function init() {
     touchRight.addEventListener('touchstart', (e) => { e.preventDefault(); game.keyEvent(39, true);  });
     touchRight.addEventListener('touchend',   (e) => { e.preventDefault(); game.keyEvent(39, false); });
   }
+
+  // ── Mouse ──────────────────────────────────────────────────────────────────
 
   canvas.addEventListener('mousedown', (e) => {
     if (e.button === 2) { game.rFlag = true;  game.lFlag = false; }
@@ -111,19 +133,23 @@ async function init() {
     game.mouseY = (e.clientY - rect.top)  * (canvas.height / rect.height);
   });
 
-  const focusOverlay = document.getElementById('focus-overlay');
+  // ── Canvas focus — resume on click-back-in ─────────────────────────────────
 
   canvas.setAttribute('tabindex', '0');
+
   canvas.addEventListener('focus', () => {
     game.isFocus = true;
     focusOverlay.classList.remove('visible');
+    game.resume();
   });
+
   canvas.addEventListener('blur', () => {
     game.isFocus = false;
     game.isFocus2 = false;
-    // Don't show the focus overlay when the game-over panel or name input is active
-    if (document.activeElement !== nameInput && overlay.style.display === 'none') {
-      focusOverlay.classList.add('visible');
+    // In-page focus change (e.g. clicking outside the canvas but within the tab).
+    // Window-level blur is handled separately above; this covers the remainder.
+    if (document.activeElement !== nameInput) {
+      triggerPause();
     }
   });
 

@@ -273,6 +273,21 @@ export class MainGame {
     this.gameMode = TITLE_MODE;
   }
 
+  pause() {
+    if (this._timerId !== null) {
+      clearTimeout(this._timerId);
+      this._timerId = null;
+    }
+  }
+
+  resume() {
+    // Only restart the tick if the game loop is running and the tick is stopped
+    if (this._rafId !== null && this._timerId === null) {
+      this.lastTickTime = performance.now();
+      this._timerId = setTimeout(() => this.tick(), TICK_MS);
+    }
+  }
+
   startGame(mode, isContinue) {
     if (this.gameMode === PLAY_MODE || this.gameMode === GAME_OVER_MODE) return;
     this.vx = 0;
@@ -431,8 +446,6 @@ export class MainGame {
   }
 
   _renderFrame(alpha) {
-    if (this.gameMode === GAME_OVER_MODE) return; // canvas frozen under overlay
-
     const ctx = this.ctx;
     const w = this.width;
     const h = this.height;

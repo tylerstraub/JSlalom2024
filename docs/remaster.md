@@ -132,8 +132,18 @@ A blurred ellipse drawn on the water surface directly below the ship sprite (pai
 ### Sprite scaling
 `ctx.imageSmoothingEnabled = false` — nearest-neighbor scaling for the jet ski sprites, same as the original. Bilinear smoothing produced noticeable blur on the small pixel-art source images at high resolution.
 
-### Focus overlay
-When the canvas loses focus, a CSS overlay dims the scene and shows a pulsing `▶ Click to resume` prompt — replacing the original in-canvas `"Click!!"` StringObject. Implemented entirely in CSS/DOM; the game render is unaffected.
+### Pause system
+When focus is lost the game fully pauses — the logic tick (`setTimeout`) is cleared so physics, score, and damage are frozen. A CSS overlay dims the scene and shows a pulsing `▶ Click to resume` prompt. Clicking the canvas (or any event that refocuses it) resumes the tick with a fresh `lastTickTime` to avoid interpolation glitches.
+
+Pause triggers:
+- **Tab switch / alt-tab**: `window.blur` event (fires regardless of which DOM element has focus within the page)
+- **In-page focus loss**: canvas `blur` event (e.g. clicking outside the canvas while staying on the tab)
+- **Escape key**: calls `triggerPause()` directly, then `canvas.blur()` to move DOM focus away
+
+The game-over overlay takes priority — `triggerPause()` is a no-op while `overlay.style.display === 'flex'`.
+
+### Canvas resize during game-over
+`_renderFrame()` previously returned early in `GAME_OVER_MODE` as a minor optimisation. Resizing the canvas clears it to black, and the early return meant the scene was never redrawn while the game-over panel was up. The guard was removed; the game-over panel is a DOM element above the canvas so rendering underneath it is harmless.
 
 ---
 
